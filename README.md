@@ -15,10 +15,10 @@ this project aims to fix all of this and clean it up into one single software
 
 ---
 ### Stack : 
-**Desktop** : Electron
-**Frontend** : React + Vite
-**Backend** : node.js (nest.js)
-**LLM Integration** : For now Gemini only, expandable
+- **Desktop** : Electron
+- **Frontend** : React + Vite
+- **Backend** : node.js (nest.js)
+- **LLM Integration** : For now Gemini only, expandable
 
 ### Features to add :
 - more advanced searching and filtering (through client in all batches, through date in all batches)

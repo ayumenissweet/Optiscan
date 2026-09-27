@@ -1,0 +1,30 @@
+{
+  "name": "optiscan",
+  "version": "1.0.0",
+  "description": "OptiScan Desktop Application",
+  "main": "electron/dist/main.js",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build:backend:watch": "npm run build --prefix backend -- --watch",
+    "dev:electron": "npx wait-on http://localhost:5173 file:backend/dist/main.js && tsc -p electron/tsconfig.json && electron electron/dist/main.js",
+    "dev": "npm run build:backend && concurrently -k -n \"FE,BE_BUILD,ELE\" -c \"cyan,magenta,blue\" \"npm run dev:frontend\" \"npm run build:backend:watch\" \"npm run dev:electron\"",
+    "build:frontend": "npm run build --prefix frontend",
+    "build:backend": "npm run build --prefix backend",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
+    "rebuild": "electron-rebuild -f -w better-sqlite3 -m backend",
+    "ready": "npm i --prefix frontend && npm i --prefix backend && npm i --prefix electron && npm i",
+    "package": "npm run build && npm run rebuild && electron-builder --config electron-builder.json"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.7.3",
+    "wait-on": "^8.0.0"
+  },
+  "dependencies": {
+    "@electron/rebuild": "^4.2.0"
+  }
+}

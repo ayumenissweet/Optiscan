@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+node_modules/
+**/node_modules/
+dist/
+build/
+**/dist/
+**/build/
+out/
+release/
+electron/dist/
+electron/out/
+electron/release/
+.vscode/
+*.db
+*.tsbuildinfo

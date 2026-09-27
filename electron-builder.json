@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.opticdb.app",
+  "productName": "OptiScan",
+  "directories": {
+    "output": "releases"
+  },
+  "files": [
+    "package.json",
+    "electron/dist/**/*",
+    "backend/dist/**/*",
+    "backend/package.json",
+    "frontend/dist/**/*",
+    "node_modules/**/*",
+    "backend/node_modules/**/*"
+  ],
+  "asar": true,
+  "asarUnpack": ["**/*.node"],
+  "npmRebuild": false,
+  "win": {
+    "target": ["nsis"]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}

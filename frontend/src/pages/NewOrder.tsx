@@ -138,14 +138,55 @@ function strToNum(v: SelectValue | null): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
+/** Shape of errors returned by the backend exception filter */
+interface ApiErrorBody {
+  statusCode?: number;
+  timestamp?: string;
+  message?: string | string[];
+  error?: string;
+}
+
 /**
- * Builds the DTO payload for one eye. Returns null if a required
- * field (ro, dia, sphere) is missing, along with which fields are missing.
+ * Reads a failed response and returns a human-readable message.
+ * Uses `message` from the backend error body (string, or string[] for
+ * class-validator errors), falling back to the given text.
+ */
+async function getApiErrorMessage(
+  res: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const body: ApiErrorBody = await res.json();
+    if (Array.isArray(body?.message) && body.message.length > 0) {
+      return body.message.join(" · ");
+    }
+    if (typeof body?.message === "string" && body.message.trim() !== "") {
+      return body.message;
+    }
+  } catch {
+    // body wasn't JSON, use the fallback
+  }
+  return fallback;
+}
+
+/** True if the user has filled in at least one field of this eye */
+function isEyeTouched(p: Prescription): boolean {
+  return Object.values(p).some((v) => v !== null && v.trim() !== "");
+}
+
+/**
+ * Builds the DTO payload for one eye.
+ * - Untouched eye (nothing filled): returns { payload: null, missing: [] }.
+ * - Touched eye with ro/dia/sph missing: returns payload null + the missing fields.
  */
 function toEyePayload(p: Prescription): {
   payload: EyePrescriptionPayload | null;
   missing: string[];
 } {
+  if (!isEyeTouched(p)) {
+    return { payload: null, missing: [] };
+  }
+
   const missing: string[] = [];
   const ro = strToNum(p.ro);
   const dia = strToNum(p.dia);
@@ -227,7 +268,14 @@ export default function NewOrder({}: NewOrderProps) {
         const res = await fetch(`${getApiBase()}${CLIENTS_PATH}`, {
           signal: controller.signal,
         });
-        if (!res.ok) throw new Error(`Couldn't load clients (${res.status}).`);
+        if (!res.ok) {
+          throw new Error(
+            await getApiErrorMessage(
+              res,
+              `Couldn't load clients (${res.status}).`,
+            ),
+          );
+        }
 
         const data: Client[] = await res.json();
         setClients(data);
@@ -311,7 +359,9 @@ export default function NewOrder({}: NewOrderProps) {
       });
 
       if (!res.ok) {
-        throw new Error(`Scan request failed (${res.status})`);
+        throw new Error(
+          await getApiErrorMessage(res, `Scan request failed (${res.status}).`),
+        );
       }
 
       const data: ScanResponse = await res.json();
@@ -332,13 +382,6 @@ export default function NewOrder({}: NewOrderProps) {
         return;
       }
 
-      if (data.left_eye) {
-        setOg(eyeSchemaToPrescription(data.left_eye));
-      }
-      if (data.right_eye) {
-        setOd(eyeSchemaToPrescription(data.right_eye));
-      }
-
       if (!data.left_eye && !data.right_eye) {
         setScanMessage({
           type: "error",
@@ -346,6 +389,18 @@ export default function NewOrder({}: NewOrderProps) {
         });
         return;
       }
+
+      // Only one eye may be present in the scan: clear the other one
+      setOg(
+        data.left_eye
+          ? eyeSchemaToPrescription(data.left_eye)
+          : emptyPrescription,
+      );
+      setOd(
+        data.right_eye
+          ? eyeSchemaToPrescription(data.right_eye)
+          : emptyPrescription,
+      );
 
       setScanMessage({
         type: "success",
@@ -388,7 +443,17 @@ export default function NewOrder({}: NewOrderProps) {
     const { payload: leftPayload, missing: leftMissing } = toEyePayload(og);
     const { payload: rightPayload, missing: rightMissing } = toEyePayload(od);
 
-    if (!leftPayload || !rightPayload) {
+    // At least one eye is required
+    if (!isEyeTouched(og) && !isEyeTouched(od)) {
+      setSubmitMessage({
+        type: "error",
+        text: "Fill in at least one eye (OG or OD).",
+      });
+      return;
+    }
+
+    // Any eye that has been started must be complete (Ro, Dia, Sph)
+    if (leftMissing.length || rightMissing.length) {
       const parts: string[] = [];
       if (leftMissing.length) parts.push(`OG: ${leftMissing.join(", ")}`);
       if (rightMissing.length) parts.push(`OD: ${rightMissing.join(", ")}`);
@@ -408,8 +473,12 @@ export default function NewOrder({}: NewOrderProps) {
       if (note.trim() !== "") {
         formData.append("note", note.trim());
       }
-      formData.append("left_eye", JSON.stringify(leftPayload));
-      formData.append("right_eye", JSON.stringify(rightPayload));
+      if (leftPayload) {
+        formData.append("left_eye", JSON.stringify(leftPayload));
+      }
+      if (rightPayload) {
+        formData.append("right_eye", JSON.stringify(rightPayload));
+      }
       if (imageFile) {
         formData.append("image", imageFile);
       }
@@ -420,16 +489,12 @@ export default function NewOrder({}: NewOrderProps) {
       });
 
       if (!res.ok) {
-        let text = `Couldn't create the order (${res.status}).`;
-        try {
-          const body = await res.json();
-          if (Array.isArray(body?.message)) {
-            text = body.message.join(" · ");
-          } else if (typeof body?.message === "string") {
-            text = body.message;
-          }
-        } catch {}
-        throw new Error(text);
+        throw new Error(
+          await getApiErrorMessage(
+            res,
+            `Couldn't create the order (${res.status}).`,
+          ),
+        );
       }
 
       setSubmitMessage({
@@ -451,7 +516,6 @@ export default function NewOrder({}: NewOrderProps) {
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-7 font-sans text-gray-900 sm:px-6 md:px-10">
-      {/* Page title */}
       <h1 className="mb-10 text-[28px] font-semibold tracking-[-0.02em] md:mb-14 md:text-[32px]">
         Ajouter Une Lentille
       </h1>
@@ -481,7 +545,7 @@ export default function NewOrder({}: NewOrderProps) {
               <button
                 type="button"
                 onClick={() => setIsClientModalOpen(true)}
-                className="mt-1 text-xs text-blue-700 hover:underline cursor-pointerx"
+                className="mt-1 text-xs text-blue-700 hover:underline cursor-pointer"
               >
                 Ajouter Un Client
               </button>
@@ -596,7 +660,6 @@ export default function NewOrder({}: NewOrderProps) {
           </button>
         </section>
 
-        {/* ================= RIGHT: IMAGE / SCAN ================= */}
         <section className="flex w-full flex-col items-center md:w-[535px]">
           <label
             htmlFor="lens-image"
@@ -649,7 +712,6 @@ export default function NewOrder({}: NewOrderProps) {
             </p>
           )}
 
-          {/* Scan button */}
           <button
             type="button"
             onClick={handleScan}
@@ -736,16 +798,12 @@ function AddClientModal({ onClose, onCreated }: AddClientModalProps) {
       });
 
       if (!res.ok) {
-        let text = `Couldn't create the client (${res.status}).`;
-        try {
-          const body = await res.json();
-          if (Array.isArray(body?.message)) {
-            text = body.message.join(" · ");
-          } else if (typeof body?.message === "string") {
-            text = body.message;
-          }
-        } catch {}
-        throw new Error(text);
+        throw new Error(
+          await getApiErrorMessage(
+            res,
+            `Couldn't create the client (${res.status}).`,
+          ),
+        );
       }
 
       const created: Client = await res.json();
@@ -866,7 +924,6 @@ function EyePrescription({ label, values, onChange }: EyePrescriptionProps) {
     <div>
       <h2 className="mb-3 text-lg font-medium">{label}</h2>
 
-      {/* Row 1: Ro / Dia */}
       <div className="mb-3 grid grid-cols-2 gap-4">
         <PrescriptionSelect
           label="Ro"
@@ -885,7 +942,6 @@ function EyePrescription({ label, values, onChange }: EyePrescriptionProps) {
         />
       </div>
 
-      {/* Row 2: Sph / Cyl / Axe */}
       <div className="grid grid-cols-3 gap-2">
         <PrescriptionSelect
           label="Sph"

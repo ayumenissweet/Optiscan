@@ -29,6 +29,9 @@ import { UpdateSettingsDto } from "./dto/updateSettings.dto";
 export class ToricsController {
   constructor(private readonly toricService: ToricsService) {}
 
+  // ========= LENS HANDLING ========
+
+  //pull batches WITHOUT lens orders
   @Get("batches")
   getBatches(
     @Query("brand", new ParseEnumPipe(ToricBrand)) brand: ToricBrand,
@@ -36,7 +39,7 @@ export class ToricsController {
     return this.toricService.getBatches(brand);
   }
 
-  //pull the batches and their content the batch.lens_orders
+  //pull the batch WITH lens orders and client
   @Get("batches/:id")
   getBatchContent(@Param("id", ParseUUIDPipe) id: string) {
     return this.toricService.getBatchContent(id);
@@ -58,6 +61,7 @@ export class ToricsController {
     return this.toricService.create(body);
   }
 
+  // ======= SETTINGS ===========
   @Get("settings")
   getSettings() {
     return this.toricService.getSettings();
@@ -67,6 +71,8 @@ export class ToricsController {
   editSettings(@Body() body: UpdateSettingsDto) {
     return this.toricService.updateSettings(body);
   }
+
+  // ========== CLIENTS ==========
 
   @Get("clients")
   getClients() {
@@ -95,6 +101,9 @@ export class ToricsController {
     return new StreamableFile(buffer);
   }
 
+  // ======== NOT IMPLEMENTED IN FRONTEND ========
+
+  //TODO
   @Patch(":id/arrived")
   checkArrived(
     @Param("id", ParseUUIDPipe) id: string,
@@ -103,6 +112,7 @@ export class ToricsController {
     return this.toricService.checkArrived(id, updatedIds);
   }
 
+  //TODO
   @Delete(":id")
   deleteProduct(@Param("id", ParseUUIDPipe) id: string) {
     return this.toricService.deleteProduct(id);

@@ -9,7 +9,7 @@ export type EyeSchema = {
 };
 
 export type ResponseSchema = {
-  status: 'ok' | 'invalid_document' | 'parse_failed';
+  status: "ok" | "invalid_document" | "parse_failed";
   left_eye?: EyeSchema;
   right_eye?: EyeSchema;
 };

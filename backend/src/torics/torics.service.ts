@@ -75,6 +75,12 @@ export class ToricsService {
     if (!client) {
       throw new BadRequestException("Client not found");
     }
+
+    if (!payload.left_eye && !payload.right_eye)
+      throw new BadRequestException(
+        "Au moins une ordonnance pour les yeux est requise.",
+      );
+
     let draftBatch = await this.batchRepo.findOneBy({
       brand: payload.brand,
       status: BatchStatus.DRAFT,

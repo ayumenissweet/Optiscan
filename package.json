@@ -25,6 +25,7 @@
     "wait-on": "^8.0.0"
   },
   "dependencies": {
-    "@electron/rebuild": "^4.2.0"
+    "@electron/rebuild": "^4.2.0",
+    "ready": "^0.1.1"
   }
 }

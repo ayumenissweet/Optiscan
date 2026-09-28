@@ -1,50 +1,58 @@
-import { ResponseSchema } from 'src/schemas/lens.schema';
-import { LLMModel } from './llm.interface';
-import { Content, GoogleGenAI, Schema, Type } from '@google/genai';
+import { ResponseSchema } from "src/schemas/lens.schema";
+import { LLMModel } from "./llm.interface";
+import { Content, GoogleGenAI, Schema, Type } from "@google/genai";
+
+const prompt =
+  "Extract the contact lens prescription from this image. " +
+  "Left eye = OG/Gauche/OS, right eye = OD/Droit. " +
+  "Set an eye to null if it isn't prescribed. " +
+  'If the image is not a prescription, use status "invalid_document". ' +
+  'If it is one but unreadable, use status "parse_failed". ' +
+  "In both failure cases, set both eyes to null.";
 
 const eyeSchema: Schema = {
   type: Type.OBJECT,
+  nullable: true,
   properties: {
     ro: {
       type: Type.NUMBER,
       nullable: true,
-      description: 'Rayon / Base Curve (e.g., 8.60). Null if not present.',
+      description: "Rayon / base curve (e.g. 8.60)",
     },
     dia: {
       type: Type.NUMBER,
       nullable: true,
-      description: 'Diamètre in mm (e.g., 14.00). Null if not present.',
+      description: "Diamètre in mm (e.g. 14.00)",
     },
     sphere: {
       type: Type.NUMBER,
-      description: 'Puissance / Sphère power (e.g., -8.50, +2.75, -14.00).',
+      description: "Puissance / sphère (e.g. -8.50)",
     },
     cyl: {
       type: Type.NUMBER,
       nullable: true,
-      description:
-        'Cylindre power inside parentheses e.g. (-0.75). Null if spherical.',
+      description: "Cylindre, (e.g. -0.75)",
     },
     axe: {
       type: Type.NUMBER,
       nullable: true,
-      description:
-        'Axis angle in degrees following cylinder e.g. 110 or 15. Null if spherical.',
+      description: "Axis in degrees (e.g. 110)",
     },
   },
-  required: ['sphere'],
+  required: ["sphere"],
 };
-const responseSchema: Schema = {
+
+export const responseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
     status: {
       type: Type.STRING,
-      enum: ['ok', 'invalid_document', 'parse_failed'],
+      enum: ["ok", "invalid_document", "parse_failed"],
     },
-    left_eye: { ...eyeSchema, nullable: true },
-    right_eye: { ...eyeSchema, nullable: true },
+    left_eye: eyeSchema,
+    right_eye: eyeSchema,
   },
-  required: ['status', 'left_eye', 'right_eye'],
+  required: ["status", "left_eye", "right_eye"],
 };
 
 export class GeminiModel implements LLMModel {
@@ -62,21 +70,17 @@ export class GeminiModel implements LLMModel {
         parts: [
           { inlineData: { mimeType, data: base64 } },
           {
-            text:
-              'This image should be a toric contact lens prescription. ' +
-              'Extract the values for left eye (OG/left/gauche) and right eye (OD/right/droit). ' +
-              "If the image is not a prescription, set status to 'invalid_document'. " +
-              "If it is a prescription but you cannot confidently read the values, set status to 'parse_failed'.",
+            text: prompt,
           },
         ],
       },
     ];
 
     const response = await this.ai.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
+      model: "gemini-3.5-flash-lite",
       contents,
       config: {
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         responseSchema,
       },
     });

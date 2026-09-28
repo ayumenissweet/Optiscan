@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsDate, ValidateNested } from "class-validator";
+import { IsOptional, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 import { SettingOptions } from "../entities/settings.entity";
 

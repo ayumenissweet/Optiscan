@@ -1,28 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Search, X } from "lucide-react";
+import { useReactToPrint } from "react-to-print";
+import { ArrowLeft, Printer, Search, X } from "lucide-react";
 import { SearchableSelect } from "../components/SearchableSelect";
+import BatchPrintSheet from "../components/BatchPrintSheet";
 import { formatOrderNumber } from "../components/DraftCard";
 import LensComponentCard, {
   type EyePrescription,
 } from "../components/LensComponentCard";
 import { getApiBase } from "../api";
 
-interface Client {
+export interface Client {
   id: string;
   name: string;
   phone_number?: string | null;
 }
 
-interface LensOrder {
+export interface LensOrder {
   id: string;
   client?: Client | null;
-  left_eye: EyePrescription;
-  right_eye: EyePrescription;
+  left_eye?: EyePrescription;
+  right_eye?: EyePrescription;
   arrived_at?: string | null;
 }
 
-interface BatchContent {
+export interface BatchContent {
   id: string;
   brand: string;
   code: number | null;
@@ -75,6 +77,14 @@ export default function BatchCheckout() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filters>(EMPTY_FILTERS);
   const [clientSearch, setClientSearch] = useState<string>("");
+
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: batch
+      ? `${batch.brand}-${batch.code ?? "brouillon"}`
+      : "commande",
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -135,7 +145,7 @@ export default function BatchCheckout() {
       const unique = Array.from(
         new Set(
           eyes
-            .map((eye) => eye[key])
+            .map((eye) => eye![key])
             .filter((v): v is number => v !== null && v !== undefined),
         ),
       ).sort((a, b) => a - b);
@@ -162,7 +172,9 @@ export default function BatchCheckout() {
         const name = normalize(o.client?.name ?? "");
         if (!tokens.every((t) => name.includes(t))) return false;
       }
-      return eyeMatches(o.left_eye, filter) || eyeMatches(o.right_eye, filter);
+      return (
+        eyeMatches(o.left_eye!, filter) || eyeMatches(o.right_eye!, filter)
+      );
     });
   }, [batch, filter, clientSearch]);
 
@@ -206,16 +218,33 @@ export default function BatchCheckout() {
       </button>
 
       {batch && (
-        <div className="flex flex-col gap-1">
-          <h1 className="font-semibold text-3xl">
-            Checkout - {batch.brand}{" "}
-            {batch.code !== null
-              ? formatOrderNumber(batch.code, new Date(batch.created_at))
-              : "(Draft)"}
-          </h1>
-          <p className="text-text/70">
-            Date : {new Date(batch.created_at).toLocaleDateString("fr-FR")}
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h1 className="font-semibold text-3xl">
+              Checkout - {batch.brand}{" "}
+              {batch.code !== null
+                ? formatOrderNumber(batch.code, new Date(batch.created_at))
+                : "(Draft)"}
+            </h1>
+            <p className="text-text/70">
+              Date : {new Date(batch.created_at).toLocaleDateString("fr-FR")}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handlePrint()}
+            disabled={batch.lens_orders.length === 0}
+            className="flex cursor-pointer items-center gap-2 rounded-xl border border-[#d2d2d2] bg-white px-4 py-2 text-sm hover:bg-[#f3f3f3] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Printer size={16} />
+            Imprimer la commande
+          </button>
+
+          {/* Feuille A4 rendue hors écran, uniquement pour l'impression */}
+          <div className="hidden">
+            <BatchPrintSheet ref={printRef} batch={batch} />
+          </div>
         </div>
       )}
 
@@ -258,11 +287,13 @@ export default function BatchCheckout() {
                 <LensComponentCard
                   key={order.id}
                   clientName={order.client?.name}
-                  left={order.left_eye}
-                  right={order.right_eye}
-                  dimLeft={filtersActive && !eyeMatches(order.left_eye, filter)}
+                  left={order.left_eye!}
+                  right={order.right_eye!}
+                  dimLeft={
+                    filtersActive && !eyeMatches(order.left_eye!, filter)
+                  }
                   dimRight={
-                    filtersActive && !eyeMatches(order.right_eye, filter)
+                    filtersActive && !eyeMatches(order.right_eye!, filter)
                   }
                 />
               ))}

@@ -1,5 +1,5 @@
-import { ResponseSchema } from 'src/schemas/lens.schema';
-import { LLMModel } from './llm.interface';
+import { ResponseSchema } from "src/schemas/lens.schema";
+import { LLMModel } from "./llm.interface";
 
 export class GPTModel implements LLMModel {
   constructor(apiKey: string) {}
@@ -8,6 +8,6 @@ export class GPTModel implements LLMModel {
     base64: string,
     mimeType: string,
   ): Promise<ResponseSchema> {
-    return { status: 'parse_failed' };
+    return { status: "parse_failed" };
   }
 }

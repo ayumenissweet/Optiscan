@@ -5,21 +5,21 @@ import {
   IsOptional,
   IsUUID,
   ValidateNested,
-} from 'class-validator';
-import { Transform, Type } from 'class-transformer';
-import { ToricBrand } from '../entities/batch.entity';
+} from "class-validator";
+import { Transform, Type } from "class-transformer";
+import { ToricBrand } from "../entities/batch.entity";
 
 class EyePrescriptionDto {
   @IsNumber()
-  @IsNotEmpty({ message: 'ro not provided' })
+  @IsOptional()
   ro: number;
 
   @IsNumber()
-  @IsNotEmpty({ message: 'dia not provided' })
+  @IsOptional()
   dia: number;
 
   @IsNumber()
-  @IsNotEmpty({ message: 'sphere not provided' })
+  @IsOptional()
   sphere: number;
 
   @IsNumber()
@@ -36,19 +36,25 @@ export class CreateToricDto {
   brand: ToricBrand;
 
   @IsUUID()
-  @IsNotEmpty({ message: 'client not assigned' })
+  @IsNotEmpty({ message: "client not assigned" })
   clientId: string;
 
   @IsOptional()
   note?: string;
 
-  @Transform(({ value }) => JSON.parse(value))
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    return typeof value === "string" ? JSON.parse(value) : value;
+  })
   @ValidateNested()
   @Type(() => EyePrescriptionDto)
-  left_eye: EyePrescriptionDto;
+  left_eye?: EyePrescriptionDto;
 
-  @Transform(({ value }) => JSON.parse(value))
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    return typeof value === "string" ? JSON.parse(value) : value;
+  })
   @ValidateNested()
   @Type(() => EyePrescriptionDto)
-  right_eye: EyePrescriptionDto;
+  right_eye?: EyePrescriptionDto;
 }

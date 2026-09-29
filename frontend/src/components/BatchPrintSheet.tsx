@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import type { BatchContent } from "../pages/BatchCheckout";
-import type { EyePrescription } from "./LensComponentCard";
+import { hasEye, type EyePrescription } from "./LensComponentCard";
 
 interface BatchPrintSheetProps {
   batch: BatchContent;
@@ -20,19 +20,17 @@ const shortYear = (createdAt: string) => {
   return Number.isNaN(year) ? "" : String(year).slice(-2);
 };
 
-const EyeRow = ({ eye }: { eye?: EyePrescription }) => (
-  <div className="grid grid-cols-[1fr_5rem_5rem] gap-4 text-lg leading-7">
-    {eye ? (
-      <>
-        <span>{formatCorrection(eye)}</span>
-        <span className="text-right tabular-nums">{eye.ro.toFixed(2)}</span>
-        <span className="text-right tabular-nums">{eye.dia.toFixed(2)}</span>
-      </>
-    ) : (
-      <span>—</span>
-    )}
-  </div>
-);
+// A missing eye renders nothing, so a one-eye order prints a single row.
+const EyeRow = ({ eye }: { eye?: EyePrescription | null }) => {
+  if (!hasEye(eye)) return null;
+  return (
+    <div className="grid grid-cols-[1fr_5rem_5rem] gap-4 text-lg leading-7">
+      <span>{formatCorrection(eye)}</span>
+      <span className="text-right tabular-nums">{eye.ro.toFixed(2)}</span>
+      <span className="text-right tabular-nums">{eye.dia.toFixed(2)}</span>
+    </div>
+  );
+};
 
 export const BatchPrintSheet = forwardRef<HTMLDivElement, BatchPrintSheetProps>(
   ({ batch }, ref) => {

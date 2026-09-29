@@ -96,11 +96,12 @@ const axeOptions = [blank("axe"), ...makeOptions([10, 20, 30, 45, 90, 180], 0)];
 
 /** Stepper buttons: `start` is used when the field is still empty. */
 interface Stepper {
-  start: number;
+  start?: number;
   dec?: number;
   inc?: number;
   max?: number;
 }
+const NO_STEPPER: Stepper = {};
 const STEPPERS: Record<string, Stepper> = {
   sph: { start: 0, dec: -0.25, inc: 0.25 },
   ro: { start: 8.4, inc: 0.1 },
@@ -924,12 +925,14 @@ const FIELDS: {
   label: string;
   options: Option[];
 }[][] = [
+  // Row 1: only two fields, so Sph gets a wide cell for its -/+ buttons
   [
     { name: "ro", label: "Ro", options: roOptions },
-    { name: "dia", label: "Dia", options: diaOptions },
-  ],
-  [
     { name: "sph", label: "Sph", options: sphOptions },
+  ],
+  // Row 2: three compact fields
+  [
+    { name: "dia", label: "Dia", options: diaOptions },
     { name: "cyl", label: "Cyl", options: cylOptions },
     { name: "axe", label: "Axe", options: axeOptions },
   ],
@@ -997,11 +1000,15 @@ function PrescriptionSelect({
   options,
   onChange,
 }: PrescriptionSelectProps) {
-  const stepper = STEPPERS[name];
+  // never undefined (dia/cyl have no buttons), so render-time reads are safe
+  const stepper = STEPPERS[name] ?? NO_STEPPER;
 
   const step = (by: number) => {
     const current = strToNum(value);
-    if (current === undefined) return onChange(name, String(stepper.start));
+    if (current === undefined) {
+      if (stepper.start !== undefined) onChange(name, String(stepper.start));
+      return;
+    }
     const next = Math.round((current + by) * 100) / 100;
     onChange(name, String(Math.min(stepper.max ?? Infinity, next)));
   };
@@ -1009,7 +1016,7 @@ function PrescriptionSelect({
   return (
     <div className="flex min-w-0 items-center gap-1">
       <span className="w-8 shrink-0 text-sm">{label}</span>
-      {stepper?.dec !== undefined && (
+      {stepper.dec !== undefined && (
         <StepButton
           icon={Minus}
           title={String(stepper.dec)}
@@ -1025,7 +1032,7 @@ function PrescriptionSelect({
           handleChange={onChange}
         />
       </div>
-      {stepper?.inc !== undefined && (
+      {stepper.inc !== undefined && (
         <StepButton
           icon={Plus}
           title={`+${stepper.inc}`}

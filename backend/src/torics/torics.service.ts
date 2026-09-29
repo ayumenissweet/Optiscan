@@ -48,17 +48,18 @@ export class ToricsService {
   }
 
   async getBatches(brand: ToricBrand) {
-    return this.batchRepo
-      .createQueryBuilder("batch")
-      .where("batch.brand = :brand", { brand })
-      .addSelect(
-        `CASE WHEN batch.status = 'DRAFT' THEN 0 ELSE 1 END`,
-        "status_order",
-      )
-      .orderBy("status_order", "ASC")
-      .addOrderBy("batch.createdAt", "DESC")
-      .getMany();
-  }
+  return this.batchRepo
+    .createQueryBuilder("batch")
+    .where("batch.brand = :brand", { brand })
+    .addSelect(
+      `CASE WHEN batch.status = :draft THEN 0 ELSE 1 END`,
+      "status_order",
+    )
+    .setParameter("draft", BatchStatus.DRAFT)
+    .orderBy("status_order", "ASC")
+    .addOrderBy("batch.created_at", "DESC")
+    .getMany();
+}
 
   async getBatchContent(id: string) {
     const batch = await this.batchRepo.findOne({

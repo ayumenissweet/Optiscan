@@ -8,9 +8,16 @@ export interface EyePrescription {
   axe?: number | null;
 }
 
+// An eye counts as present only if it exists AND its required values are filled.
+// The API may send an object with null fields for a missing eye, not just null.
+export const hasEye = (
+  eye: EyePrescription | null | undefined,
+): eye is EyePrescription =>
+  !!eye && eye.ro != null && eye.dia != null && eye.sphere != null;
+
 interface LensComponentCardProps {
-  left: EyePrescription;
-  right: EyePrescription;
+  left?: EyePrescription | null;
+  right?: EyePrescription | null;
   clientName?: string | null;
   dimLeft?: boolean;
   dimRight?: boolean;
@@ -70,14 +77,22 @@ export default function LensComponentCard({
   dimLeft = false,
   dimRight = false,
 }: LensComponentCardProps) {
+  const showLeft = hasEye(left);
+  const showRight = hasEye(right);
+  if (!showLeft && !showRight) return null;
+
+  const bothEyes = showLeft && showRight;
+
   return (
     <div
-      className={`grid h-full w-full grid-cols-2 overflow-hidden rounded-lg border-[1.5px] border-stroke bg-card ${
+      className={`grid h-full w-full ${
+        bothEyes ? "grid-cols-2" : "grid-cols-1"
+      } overflow-hidden rounded-lg border-[1.5px] border-stroke bg-card ${
         clientName ? "grid-rows-[auto_1fr]" : ""
       }`}
     >
       {clientName && (
-        <div className="col-span-2 flex items-center gap-2 border-b-[1.5px] border-stroke bg-accent-2/5 px-3 py-2">
+        <div className="col-span-full flex items-center gap-2 border-b-[1.5px] border-stroke bg-accent-2/5 px-3 py-2">
           <User size={16} className="shrink-0 text-accent-2" />
           <span className="truncate font-semibold" title={clientName}>
             {clientName}
@@ -85,13 +100,15 @@ export default function LensComponentCard({
         </div>
       )}
 
-      <EyePanel side="OG" eye={left} dimmed={dimLeft} />
-      <EyePanel
-        side="OD"
-        eye={right}
-        dimmed={dimRight}
-        className="border-l-[1.5px] border-stroke"
-      />
+      {hasEye(left) && <EyePanel side="OG" eye={left} dimmed={dimLeft} />}
+      {hasEye(right) && (
+        <EyePanel
+          side="OD"
+          eye={right}
+          dimmed={dimRight}
+          className={bothEyes ? "border-l-[1.5px] border-stroke" : ""}
+        />
+      )}
     </div>
   );
 }

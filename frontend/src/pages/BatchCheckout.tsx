@@ -6,6 +6,7 @@ import { SearchableSelect } from "../components/SearchableSelect";
 import BatchPrintSheet from "../components/BatchPrintSheet";
 import { formatOrderNumber } from "../components/DraftCard";
 import LensComponentCard, {
+  hasEye,
   type EyePrescription,
 } from "../components/LensComponentCard";
 import { getApiBase } from "../api";
@@ -19,8 +20,9 @@ export interface Client {
 export interface LensOrder {
   id: string;
   client?: Client | null;
-  left_eye?: EyePrescription;
-  right_eye?: EyePrescription;
+  // At least one of the two eyes is always present.
+  left_eye?: EyePrescription | null;
+  right_eye?: EyePrescription | null;
   arrived_at?: string | null;
 }
 
@@ -63,10 +65,16 @@ const normalize = (s: string) =>
     .toLowerCase()
     .trim();
 
-const eyeMatches = (eye: EyePrescription, filter: Filters) =>
-  FILTER_FIELDS.every(
-    ({ key }) => filter[key] === null || eye[key] === filter[key],
+const eyeMatches = (
+  eye: EyePrescription | null | undefined,
+  filter: Filters,
+) => {
+  if (!hasEye(eye)) return false;
+  const e: EyePrescription = eye;
+  return FILTER_FIELDS.every(
+    ({ key }) => filter[key] === null || e[key] === filter[key],
   );
+};
 
 export default function BatchCheckout() {
   const { id } = useParams<{ id: string }>();
@@ -145,7 +153,7 @@ export default function BatchCheckout() {
       const unique = Array.from(
         new Set(
           eyes
-            .map((eye) => eye![key])
+            .map((eye) => (hasEye(eye) ? eye[key] : undefined))
             .filter((v): v is number => v !== null && v !== undefined),
         ),
       ).sort((a, b) => a - b);
@@ -172,11 +180,10 @@ export default function BatchCheckout() {
         const name = normalize(o.client?.name ?? "");
         if (!tokens.every((t) => name.includes(t))) return false;
       }
-      return (
-        eyeMatches(o.left_eye!, filter) || eyeMatches(o.right_eye!, filter)
-      );
+      if (!filtersActive) return true;
+      return eyeMatches(o.left_eye, filter) || eyeMatches(o.right_eye, filter);
     });
-  }, [batch, filter, clientSearch]);
+  }, [batch, filter, filtersActive, clientSearch]);
 
   const totalCount = batch?.lens_orders.length ?? 0;
 
@@ -287,14 +294,10 @@ export default function BatchCheckout() {
                 <LensComponentCard
                   key={order.id}
                   clientName={order.client?.name}
-                  left={order.left_eye!}
-                  right={order.right_eye!}
-                  dimLeft={
-                    filtersActive && !eyeMatches(order.left_eye!, filter)
-                  }
-                  dimRight={
-                    filtersActive && !eyeMatches(order.right_eye!, filter)
-                  }
+                  left={order.left_eye}
+                  right={order.right_eye}
+                  dimLeft={filtersActive && !eyeMatches(order.left_eye, filter)}
+                  dimRight={filtersActive && !eyeMatches(order.right_eye, filter)}
                 />
               ))}
             </div>

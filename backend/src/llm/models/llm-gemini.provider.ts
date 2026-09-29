@@ -5,6 +5,10 @@ import { Content, GoogleGenAI, Schema, Type } from "@google/genai";
 const prompt =
   "Extract the contact lens prescription from this image. " +
   "Left eye = OG/Gauche/OS, right eye = OD/Droit. " +
+  "The power can written as: SPHERE (CYLINDER à AXIS°), " +
+  "for example '+4.25 (-1.25 à 25°)' means sphere=4.25, cyl=-1.25, axe=25. " +
+  "Whenever a cylinder is present, the axis is always present too, so you must extract it. " +
+  "The word 'à' separates cylinder from axis, and '°' marks the axis in degrees or it can be written A : 25°. " +
   "Set an eye to null if it isn't prescribed. " +
   'If the image is not a prescription, use status "invalid_document". ' +
   'If it is one but unreadable, use status "parse_failed". ' +
@@ -29,15 +33,16 @@ const eyeSchema: Schema = {
       description: "Puissance / sphère (e.g. -8.50)",
     },
     cyl: {
-      type: Type.NUMBER,
-      nullable: true,
-      description: "Cylindre, (e.g. -0.75)",
-    },
-    axe: {
-      type: Type.NUMBER,
-      nullable: true,
-      description: "Axis in degrees (e.g. 110)",
-    },
+  type: Type.NUMBER,
+  nullable: true,
+  description: "Cylinder, the first number inside the parentheses (e.g. -1.25)",
+},
+axe: {
+  type: Type.NUMBER,
+  nullable: true,
+  description:
+    "Axis in degrees, the number after 'à' inside the parentheses, 0-180 (e.g. 25°). Never null if cyl is present.",
+},
   },
   required: ["sphere"],
 };

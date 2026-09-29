@@ -85,7 +85,7 @@ export class ToricsController {
   }
 
   //export into excel
-  @Get("export/:id")
+  @Post("export/:id")
   @Header(
     "Content-Type",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -93,8 +93,12 @@ export class ToricsController {
   async excelExport(
     @Param("id", ParseUUIDPipe) id: string,
     @Res({ passthrough: true }) res: Response,
+    @Body("customCode") customCode?: number,
   ) {
-    const { buffer, code } = await this.toricService.excelExport(id);
+    const { buffer, code } = await this.toricService.excelExport(
+      id,
+      customCode,
+    );
 
     res.header("X-Batch-Code", String(code));
 
@@ -112,9 +116,8 @@ export class ToricsController {
     return this.toricService.checkArrived(id, updatedIds);
   }
 
-  //TODO
   @Delete(":id")
   deleteProduct(@Param("id", ParseUUIDPipe) id: string) {
-    return this.toricService.deleteProduct(id);
+    return this.toricService.deleteBatch(id);
   }
 }

@@ -37,6 +37,136 @@ function toOrderStatus(status: string): OrderStatus {
   return STATUS_MAP[status] ?? OrderStatus.DRAFT;
 }
 
+interface ModalShellProps {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function ModalShell({ title, onClose, children }: ModalShellProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div
+        className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-xl font-semibold">{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+interface ExportModalProps {
+  onCancel: () => void;
+  onConfirm: (customCode: number | null) => void;
+}
+
+function ExportModal({ onCancel, onConfirm }: ExportModalProps) {
+  const [value, setValue] = useState("");
+  const trimmed = value.trim();
+  const parsed = trimmed === "" ? null : Number(trimmed);
+  const invalid =
+    parsed !== null && (!Number.isInteger(parsed) || (parsed as number) < 1);
+
+  return (
+    <ModalShell title="Exporter la commande" onClose={onCancel}>
+      <p className="text-sm text-gray-600">
+        Ajoutez un code si vous en êtes déjà, par exemple, au lot 82 dans votre
+        ancien logiciel ou vos notes. Laissez vide pour utiliser le code suivant
+        automatiquement.
+      </p>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="customCode" className="text-sm font-medium">
+          Code personnalisé (optionnel)
+        </label>
+        <input
+          id="customCode"
+          type="number"
+          min={1}
+          step={1}
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !invalid) onConfirm(parsed);
+          }}
+          placeholder="ex. 82"
+          className="rounded border border-gray-300 px-3 py-2"
+        />
+        {invalid && (
+          <span className="text-sm text-red-500">
+            Entrez un nombre entier positif.
+          </span>
+        )}
+      </div>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded border border-gray-300 px-4 py-2"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          disabled={invalid}
+          onClick={() => onConfirm(parsed)}
+          className="rounded bg-black px-4 py-2 text-white disabled:opacity-40"
+        >
+          Exporter
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+interface DeleteModalProps {
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function DeleteModal({ deleting, onCancel, onConfirm }: DeleteModalProps) {
+  return (
+    <ModalShell title="Supprimer le brouillon" onClose={onCancel}>
+      <p className="text-sm text-gray-600">
+        Êtes-vous sûr ? Ce brouillon sera supprimé définitivement.
+      </p>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={deleting}
+          className="rounded border border-gray-300 px-4 py-2"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={deleting}
+          className="rounded bg-red-600 px-4 py-2 text-white disabled:opacity-40"
+        >
+          {deleting ? "Suppression..." : "Supprimer"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 export default function Orders({ brand }: OrdersProps) {
   const navigate = useNavigate();
 
@@ -44,6 +174,9 @@ export default function Orders({ brand }: OrdersProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [exportTarget, setExportTarget] = useState<Batch | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
   const [filter, setFilter] = useState<FilterTypes>({
     order_number: null,
     year: null,
@@ -98,10 +231,14 @@ export default function Orders({ brand }: OrdersProps) {
     [batches],
   );
 
-  const handleExport = async (batch: Batch) => {
+  const handleExport = async (batch: Batch, customCode: number | null) => {
     try {
       setExportingId(batch.id);
-      const response = await fetch(`${getApiBase()}/export/${batch.id}`);
+      const response = await fetch(`${getApiBase()}/export/${batch.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(customCode !== null ? { customCode } : {}),
+      });
 
       if (!response.ok) {
         setError(`Export Error: ${response.status} ${response.statusText}`);
@@ -149,6 +286,31 @@ export default function Orders({ brand }: OrdersProps) {
       );
     } finally {
       setExportingId(null);
+    }
+  };
+
+  const handleDelete = async (batch: Batch) => {
+    try {
+      setDeleting(true);
+      const response = await fetch(`${getApiBase()}/${batch.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        setError(`Delete Error: ${response.status} ${response.statusText}`);
+        return;
+      }
+
+      setDeleteTarget(null);
+      await fetchBatches();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? `Delete Error: ${e.message}`
+          : `An unknown error occured : ${e}`,
+      );
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -231,18 +393,52 @@ export default function Orders({ brand }: OrdersProps) {
           {filteredBatches.map((item) => {
             const status = toOrderStatus(item.status);
             return (
-              <DraftCard
-                key={item.id}
-                code={status === OrderStatus.DRAFT ? null : item.code}
-                status={status}
-                orderDate={new Date(item.created_at)}
-                onExport={() => handleExport(item)}
-                onCheckout={() => navigate(`/batches/${item.id}`)}
-                exporting={exportingId === item.id}
-              />
+              <div key={item.id} className="relative">
+                <DraftCard
+                  code={status === OrderStatus.DRAFT ? null : item.code}
+                  status={status}
+                  orderDate={new Date(item.created_at)}
+                  onExport={() =>
+                    status === OrderStatus.DRAFT
+                      ? setExportTarget(item)
+                      : handleExport(item, null)
+                  }
+                  onCheckout={() => navigate(`/batches/${item.id}`)}
+                  exporting={exportingId === item.id}
+                />
+                {status === OrderStatus.DRAFT && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(item)}
+                    className="absolute right-3 top-3 rounded border border-red-300 bg-white px-2 py-1 text-sm text-red-600 hover:bg-red-50"
+                    aria-label="Supprimer ce brouillon"
+                  >
+                    Supprimer
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
+      )}
+
+      {exportTarget && (
+        <ExportModal
+          onCancel={() => setExportTarget(null)}
+          onConfirm={(customCode) => {
+            const batch = exportTarget;
+            setExportTarget(null);
+            handleExport(batch, customCode);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteModal
+          deleting={deleting}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget)}
+        />
       )}
     </div>
   );

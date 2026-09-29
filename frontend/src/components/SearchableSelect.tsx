@@ -11,9 +11,14 @@ interface SearchableProps<T> {
   value?: T | null;
   handleChange: (name: string, value: T | null) => void;
   placeholder: string;
-  /** Tighter paddings / smaller chevron so several selects fit in one row. */
   compact?: boolean;
 }
+
+const ellipsis = {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} as const;
 
 export function SearchableSelect<T>({
   options,
@@ -30,6 +35,7 @@ export function SearchableSelect<T>({
           label: String(value),
         })
       : null;
+
   return (
     <div className="w-full min-w-0">
       <CreatableSelect<OptionValue<T>>
@@ -40,66 +46,42 @@ export function SearchableSelect<T>({
         className="w-full text-sm"
         classNamePrefix="lens-select"
         onChange={(option) => handleChange(name, option?.value ?? null)}
-        onCreateOption={(inputValue) => {
-          handleChange(name, inputValue as T);
-        }}
+        onCreateOption={(input) => handleChange(name, input as T)}
         styles={{
           control: (base) => ({
             ...base,
-            width: "100%",
             minWidth: 0,
-            minHeight: "38px",
-            height: "38px",
+            minHeight: 38,
+            height: 38,
             borderRadius: "0.75rem",
             borderColor: "#d2d2d2",
             padding: "0 2px",
             boxShadow: "none",
             cursor: "text",
           }),
-
           valueContainer: (base) => ({
             ...base,
             minWidth: 0,
             padding: compact ? "0 2px 0 8px" : "0 6px",
           }),
-          input: (base) => ({
-            ...base,
-            margin: 0,
-            padding: 0,
-          }),
-          singleValue: (base) => ({
-            ...base,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }),
-
+          input: (base) => ({ ...base, margin: 0, padding: 0 }),
+          singleValue: (base) => ({ ...base, ...ellipsis }),
           placeholder: (base) => ({
             ...base,
             color: "#5a5a5a",
-            ...(compact && {
-              maxWidth: "100%",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }),
+            ...(compact && { maxWidth: "100%", ...ellipsis }),
           }),
-
           option: (base, state) => ({
             ...base,
             cursor: "pointer",
-            backgroundColor: state.isFocused ? "#f3f3f3" : "#ffffff",
+            backgroundColor: state.isFocused ? "#f3f3f3" : "#fff",
             color: "#0f172a",
           }),
-
-          indicatorSeparator: () => ({
-            display: "none",
-          }),
-
+          indicatorSeparator: () => ({ display: "none" }),
           dropdownIndicator: (base) => ({
             ...base,
             color: "#5a5a5a",
-            padding: compact ? "0 4px 0 0" : "4px",
+            padding: compact ? "0 4px 0 0" : 4,
             ...(compact && { "& svg": { width: 14, height: 14 } }),
           }),
         }}

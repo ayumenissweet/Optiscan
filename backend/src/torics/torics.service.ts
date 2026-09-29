@@ -48,7 +48,16 @@ export class ToricsService {
   }
 
   async getBatches(brand: ToricBrand) {
-    return this.batchRepo.find({ where: { brand } });
+    return this.batchRepo
+      .createQueryBuilder("batch")
+      .where("batch.brand = :brand", { brand })
+      .addSelect(
+        `CASE WHEN batch.status = 'DRAFT' THEN 0 ELSE 1 END`,
+        "status_order",
+      )
+      .orderBy("status_order", "ASC")
+      .addOrderBy("batch.createdAt", "DESC")
+      .getMany();
   }
 
   async getBatchContent(id: string) {
@@ -175,15 +184,20 @@ export class ToricsService {
     );
   }
 
-  async deleteProduct(id: string) {
-    const lens = await this.LensRepo.findOneBy({ id });
-    if (!lens)
-      throw new NotFoundException(
-        `The toric lens with the id ${id} is not found`,
-      );
+  async deleteBatch(id: string) {
+    const batch = await this.batchRepo.findOneBy({ id });
+    if (!batch) {
+      throw new NotFoundException(`Batch with ID ${id} not found`);
+    }
 
-    await this.LensRepo.delete(id);
-    return "Successfully deleted";
+    if (batch.status !== BatchStatus.DRAFT) {
+      throw new BadRequestException(
+        "Cannot delete a batch that has already been sent/exported.",
+      );
+    }
+
+    await this.batchRepo.delete(id);
+    return { message: "Draft batch successfully deleted" };
   }
 
   formatDate(value: Date | string): string {
@@ -194,7 +208,7 @@ export class ToricsService {
     return `${day}-${month}-${year}`;
   }
 
-  async excelExport(id: string) {
+  async excelExport(id: string, customCode?: number) {
     const batch = await this.batchRepo.findOne({
       where: { id },
       relations: {
@@ -210,17 +224,33 @@ export class ToricsService {
       throw new BadRequestException("This batch has no torics to export");
 
     if (batch.status === BatchStatus.DRAFT) {
+      const currentYear = new Date().getFullYear();
+
       const result = await this.batchRepo
         .createQueryBuilder("batch")
         .select("MAX(batch.code)", "maxCode")
-        .where("batch.brand = :brand", {
-          brand: batch.brand,
+        .where("batch.brand = :brand", { brand: batch.brand })
+        .andWhere("strftime('%Y', batch.created_at) = :currentYear", {
+          currentYear: String(currentYear),
         })
         .getRawOne<{ maxCode: number | null }>();
 
-      const newOrder: number = (result?.maxCode ?? 0) + 1;
+      const maxCode = result?.maxCode ?? 0;
 
-      batch.code = newOrder;
+      let finalCode: number;
+
+      if (customCode !== undefined) {
+        if (customCode <= maxCode) {
+          throw new BadRequestException(
+            `Le code ${customCode} n'est pas valide. Il doit être supérieur au code maximum actuel (${maxCode}) pour cette année.`,
+          );
+        }
+        finalCode = customCode;
+      } else {
+        finalCode = maxCode + 1;
+      }
+
+      batch.code = finalCode;
       batch.exported_at = new Date();
       batch.status = BatchStatus.SENT;
 
@@ -242,7 +272,6 @@ export class ToricsService {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("LMS Torics");
 
-    // Build columns dynamically based on settings
     const columns: Partial<ExcelJS.Column>[] = [];
 
     if (showDate) {
@@ -264,36 +293,36 @@ export class ToricsService {
     sheet.columns = columns;
 
     for (const toric of torics) {
-      const clientName = toric.client.name;
+      const clientName = toric.client?.name ?? "";
 
-      const leftRow: Record<string, unknown> = {
-        note: toric.note ?? "",
-        sph: toric.left_eye.sphere,
-        cyl: toric.left_eye.cyl ?? null,
-        axe: toric.left_eye.axe ?? null,
-        ro: toric.left_eye.ro,
-        dia: toric.left_eye.dia,
-      };
-      const rightRow: Record<string, unknown> = {
-        note: toric.note ?? "",
-        sph: toric.right_eye.sphere,
-        cyl: toric.right_eye.cyl ?? null,
-        axe: toric.right_eye.axe ?? null,
-        ro: toric.right_eye.ro,
-        dia: toric.right_eye.dia,
-      };
-
-      if (showDate) {
-        leftRow.date = date;
-        rightRow.date = date;
-      }
-      if (showClient) {
-        leftRow.clientName = clientName;
-        rightRow.clientName = clientName;
+      if (toric.left_eye) {
+        const leftRow: Record<string, unknown> = {
+          note: toric.note ?? "",
+          sph: toric.left_eye.sphere,
+          cyl: toric.left_eye.cyl ?? null,
+          axe: toric.left_eye.axe ?? null,
+          ro: toric.left_eye.ro,
+          dia: toric.left_eye.dia,
+        };
+        if (showDate) leftRow.date = date;
+        if (showClient) leftRow.clientName = clientName;
+        sheet.addRow(leftRow);
       }
 
-      sheet.addRow(leftRow);
-      sheet.addRow(rightRow);
+      if (toric.right_eye) {
+        const rightRow: Record<string, unknown> = {
+          note: toric.note ?? "",
+          sph: toric.right_eye.sphere,
+          cyl: toric.right_eye.cyl ?? null,
+          axe: toric.right_eye.axe ?? null,
+          ro: toric.right_eye.ro,
+          dia: toric.right_eye.dia,
+        };
+        if (showDate) rightRow.date = date;
+        if (showClient) rightRow.clientName = clientName;
+        sheet.addRow(rightRow);
+      }
+
       sheet.addRow({});
     }
 
@@ -306,7 +335,9 @@ export class ToricsService {
       });
     });
     sheet.getRow(1).font = { name: "Calibri", size: 12, bold: true };
+
     const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
     return { buffer, code: batch.code };
   }
 }

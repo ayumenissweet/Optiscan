@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, ScanLine, Upload, X } from "lucide-react";
+import { Loader2, Minus, Plus, ScanLine, Upload, X } from "lucide-react";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { getApiBase } from "../api";
 
@@ -67,45 +67,45 @@ const brandOptions = [
   { value: "Versa View", label: "Versa View" },
 ];
 
-const roOptions = [
-  { value: "8.4", label: "8.4" },
-  { value: "8.6", label: "8.6" },
-  { value: "8.8", label: "8.8" },
-];
+type Option = { value: string | null; label: string };
 
-const diaOptions = [
-  { value: "13.8", label: "13.8" },
-  { value: "14.0", label: "14.0" },
-  { value: "14.2", label: "14.2" },
-];
+const makeOptions = (nums: number[], decimals = 2, signed = false): Option[] =>
+  nums.map((n) => ({
+    value: String(n), // same format as numToStr() so scanned values match
+    label: (signed && n > 0 ? "+" : "") + n.toFixed(decimals),
+  }));
+const blank = (label: string): Option => ({
+  value: null,
+  label: `-- ${label} --`,
+});
 
-const sphOptions = [
-  { value: "-10.00", label: "-10.00" },
-  { value: "-8.00", label: "-8.00" },
-  { value: "-6.00", label: "-6.00" },
-  { value: "-4.00", label: "-4.00" },
-  { value: "-2.00", label: "-2.00" },
-  { value: "0.00", label: "0.00" },
-  { value: "+2.00", label: "+2.00" },
-  { value: "+4.00", label: "+4.00" },
-  { value: "+6.00", label: "+6.00" },
-];
-
+const roOptions = makeOptions([8.4, 8.6, 8.7, 8.9, 9]);
+const diaOptions = makeOptions([14, 14.2], 1);
+// -10, -8, ... +10
+const sphOptions = makeOptions(
+  Array.from({ length: 11 }, (_, i) => i * 2 - 10),
+  2,
+  true,
+);
+// blank, then -0.25 ... -2.25
 const cylOptions = [
-  { value: "-0.75", label: "-0.75" },
-  { value: "-1.25", label: "-1.25" },
-  { value: "-1.75", label: "-1.75" },
-  { value: "-2.25", label: "-2.25" },
+  blank("cyl"),
+  ...makeOptions(Array.from({ length: 9 }, (_, i) => -(i + 1) * 0.25)),
 ];
+const axeOptions = [blank("axe"), ...makeOptions([10, 20, 30, 45, 90, 180], 0)];
 
-const axeOptions = [
-  { value: "10", label: "10" },
-  { value: "20", label: "20" },
-  { value: "30", label: "30" },
-  { value: "45", label: "45" },
-  { value: "90", label: "90" },
-  { value: "180", label: "180" },
-];
+/** Stepper buttons: `start` is used when the field is still empty. */
+interface Stepper {
+  start: number;
+  dec?: number;
+  inc?: number;
+  max?: number;
+}
+const STEPPERS: Record<string, Stepper> = {
+  sph: { start: 0, dec: -0.25, inc: 0.25 },
+  ro: { start: 8.4, inc: 0.1 },
+  axe: { start: 10, inc: 10, max: 180 },
+};
 
 const emptyPrescription: Prescription = {
   ro: null,
@@ -919,54 +919,43 @@ interface EyePrescriptionProps {
   onChange: (name: string, value: string | null) => void;
 }
 
+const FIELDS: {
+  name: keyof Prescription;
+  label: string;
+  options: Option[];
+}[][] = [
+  [
+    { name: "ro", label: "Ro", options: roOptions },
+    { name: "dia", label: "Dia", options: diaOptions },
+  ],
+  [
+    { name: "sph", label: "Sph", options: sphOptions },
+    { name: "cyl", label: "Cyl", options: cylOptions },
+    { name: "axe", label: "Axe", options: axeOptions },
+  ],
+];
+
 function EyePrescription({ label, values, onChange }: EyePrescriptionProps) {
   return (
     <div>
       <h2 className="mb-3 text-lg font-medium">{label}</h2>
-
-      <div className="mb-3 grid grid-cols-2 gap-4">
-        <PrescriptionSelect
-          label="Ro"
-          name="ro"
-          value={values.ro}
-          options={roOptions}
-          onChange={onChange}
-        />
-
-        <PrescriptionSelect
-          label="Dia"
-          name="dia"
-          value={values.dia}
-          options={diaOptions}
-          onChange={onChange}
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <PrescriptionSelect
-          label="Sph"
-          name="sph"
-          value={values.sph}
-          options={sphOptions}
-          onChange={onChange}
-        />
-
-        <PrescriptionSelect
-          label="Cyl"
-          name="cyl"
-          value={values.cyl}
-          options={cylOptions}
-          onChange={onChange}
-        />
-
-        <PrescriptionSelect
-          label="Axe"
-          name="axe"
-          value={values.axe}
-          options={axeOptions}
-          onChange={onChange}
-        />
-      </div>
+      {FIELDS.map((row, i) => (
+        <div
+          key={i}
+          className={
+            i === 0 ? "mb-3 grid grid-cols-2 gap-4" : "grid grid-cols-3 gap-2"
+          }
+        >
+          {row.map((f) => (
+            <PrescriptionSelect
+              key={f.name}
+              {...f}
+              value={values[f.name]}
+              onChange={onChange}
+            />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -975,11 +964,30 @@ interface PrescriptionSelectProps {
   label: string;
   name: string;
   value: string | null;
-  options: {
-    value: string;
-    label: string;
-  }[];
+  options: Option[];
   onChange: (name: string, value: string | null) => void;
+}
+
+function StepButton({
+  icon: Icon,
+  title,
+  onClick,
+}: {
+  icon: typeof Plus;
+  title: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className="grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded border border-gray-200 text-gray-500 hover:bg-gray-100 active:scale-95"
+    >
+      <Icon size={12} />
+    </button>
+  );
 }
 
 function PrescriptionSelect({
@@ -989,12 +997,27 @@ function PrescriptionSelect({
   options,
   onChange,
 }: PrescriptionSelectProps) {
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      <span className="w-8 shrink-0 text-sm">{label}</span>
+  const stepper = STEPPERS[name];
 
+  const step = (by: number) => {
+    const current = strToNum(value);
+    if (current === undefined) return onChange(name, String(stepper.start));
+    const next = Math.round((current + by) * 100) / 100;
+    onChange(name, String(Math.min(stepper.max ?? Infinity, next)));
+  };
+
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <span className="w-8 shrink-0 text-sm">{label}</span>
+      {stepper?.dec !== undefined && (
+        <StepButton
+          icon={Minus}
+          title={String(stepper.dec)}
+          onClick={() => step(stepper.dec!)}
+        />
+      )}
       <div className="min-w-0 flex-1">
-        <SearchableSelect
+        <SearchableSelect<string>
           options={options}
           name={name}
           value={value}
@@ -1002,6 +1025,13 @@ function PrescriptionSelect({
           handleChange={onChange}
         />
       </div>
+      {stepper?.inc !== undefined && (
+        <StepButton
+          icon={Plus}
+          title={`+${stepper.inc}`}
+          onClick={() => step(stepper.inc!)}
+        />
+      )}
     </div>
   );
 }

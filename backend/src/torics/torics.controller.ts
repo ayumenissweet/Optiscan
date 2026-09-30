@@ -5,7 +5,6 @@ import {
   Get,
   Header,
   Param,
-  ParseEnumPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -20,10 +19,11 @@ import { CreateToricDto } from "./dto/createToric.dto";
 import { ToricsService } from "./torics.service";
 import { multerConfig } from "src/config/multerConfig";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { Batch, ToricBrand } from "./entities/batch.entity";
+import { Batch } from "./entities/batch.entity";
 import { createClientDto } from "./dto/createClient.dto";
 import { ResponseSchema } from "src/schemas/lens.schema";
 import { UpdateSettingsDto } from "./dto/updateSettings.dto";
+import { UpdateToricDto } from "./dto/updateToric.dto";
 
 @Controller("api")
 export class ToricsController {
@@ -31,11 +31,24 @@ export class ToricsController {
 
   // ========= LENS HANDLING ========
 
+  @Patch("lenses/:id")
+  updateLens(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() body: UpdateToricDto,
+  ) {
+    return this.toricService.updateLens(id, body);
+  }
+
+  @Delete("lenses/:id")
+  deleteLens(@Param("id", ParseUUIDPipe) id: string) {
+    return this.toricService.deleteLens(id);
+  }
+
+  // ========== BATCH HANDLING =========
+
   //pull batches WITHOUT lens orders
   @Get("batches")
-  getBatches(
-    @Query("brand", new ParseEnumPipe(ToricBrand)) brand: ToricBrand,
-  ): Promise<Batch[]> {
+  getBatches(@Query("brand") brand: string): Promise<Batch[]> {
     return this.toricService.getBatches(brand);
   }
 
@@ -103,6 +116,18 @@ export class ToricsController {
     res.header("X-Batch-Code", String(code));
 
     return new StreamableFile(buffer);
+  }
+
+  // ======== BRAND IMPLEMENTATION =========
+  @Get("brand")
+  getBrands() {
+    return this.toricService.getBrands();
+  }
+
+  @Patch("brand")
+  createBrand(@Body("brand") brand: string) {
+    if (!brand) return;
+    return this.toricService.createBrand(brand);
   }
 
   // ======== NOT IMPLEMENTED IN FRONTEND ========

@@ -7,9 +7,8 @@ import {
   ValidateNested,
 } from "class-validator";
 import { Transform, Type } from "class-transformer";
-import { ToricBrand } from "../entities/batch.entity";
 
-class EyePrescriptionDto {
+export class EyePrescriptionDto {
   @IsNumber()
   @IsOptional()
   ro: number;
@@ -32,8 +31,8 @@ class EyePrescriptionDto {
 }
 
 export class CreateToricDto {
-  @IsEnum(ToricBrand)
-  brand: ToricBrand;
+  @IsNotEmpty({ message: "Brand not included" })
+  brand: string;
 
   @IsUUID()
   @IsNotEmpty({ message: "client not assigned" })

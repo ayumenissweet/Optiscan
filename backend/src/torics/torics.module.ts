@@ -11,10 +11,11 @@ import { Client } from "./entities/client.entity";
 import { Settings } from "./entities/settings.entity";
 import { GeminiExceptionFilter } from "./filters/torics.geminiFilter";
 import { SqliteErrorFilter } from "./filters/torics.sqlFilter";
+import { LensBrand } from "./entities/brand.entity";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([LensOrder, Batch, Client, Settings]),
+    TypeOrmModule.forFeature([LensOrder, Batch, Client, Settings, LensBrand]),
     LlmModule,
   ],
   controllers: [ToricsController],

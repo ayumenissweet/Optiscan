@@ -10,11 +10,13 @@ import { CreateToricDto } from "./dto/createToric.dto";
 import { ImageCompresserService } from "./imageCompresser.service";
 import { LLMParserService } from "src/llm/llmParser.service";
 import * as ExcelJS from "exceljs";
-import { Batch, BatchStatus, ToricBrand } from "./entities/batch.entity";
+import { Batch, BatchStatus } from "./entities/batch.entity";
 import { createClientDto } from "./dto/createClient.dto";
 import { Client } from "./entities/client.entity";
 import { SettingOptions, Settings } from "./entities/settings.entity";
 import { UpdateSettingsDto } from "./dto/updateSettings.dto";
+import { LensBrand } from "./entities/brand.entity";
+import { UpdateToricDto } from "./dto/updateToric.dto";
 
 @Injectable()
 export class ToricsService {
@@ -27,6 +29,7 @@ export class ToricsService {
     private readonly clientRepo: Repository<Client>,
     @InjectRepository(Settings)
     private readonly settingsRepo: Repository<Settings>,
+    private readonly brandRepo: Repository<LensBrand>,
     private readonly imageCompressService: ImageCompresserService,
     private readonly llmParsingService: LLMParserService,
   ) {}
@@ -48,25 +51,55 @@ export class ToricsService {
   }
 
   async getBatches(brand: ToricBrand) {
-  return this.batchRepo
-    .createQueryBuilder("batch")
-    .where("batch.brand = :brand", { brand })
-    .addSelect(
-      `CASE WHEN batch.status = :draft THEN 0 ELSE 1 END`,
-      "status_order",
-    )
-    .setParameter("draft", BatchStatus.DRAFT)
-    .orderBy("status_order", "ASC")
-    .addOrderBy("batch.created_at", "DESC")
-    .getMany();
-}
+    return this.batchRepo
+      .createQueryBuilder("batch")
+      .where("batch.brand = :brand", { brand })
+      .addSelect(
+        `CASE WHEN batch.status = :draft THEN 0 ELSE 1 END`,
+        "status_order",
+      )
+      .setParameter("draft", BatchStatus.DRAFT)
+      .orderBy("status_order", "ASC")
+      .addOrderBy("batch.created_at", "DESC")
+      .getMany();
+  }
+
+  async updateLens(id: string, payload: UpdateToricDto) {
+    const lens = await this.LensRepo.findOneBy({ id });
+    if (!lens) throw new BadRequestException("Lentille pas trouvée");
+
+    if (payload.note !== undefined) {
+      lens.note = payload.note;
+    }
+    if (payload.left_eye) {
+      lens.left_eye = {
+        ...lens.left_eye,
+        ...payload.left_eye,
+      };
+    }
+    if (payload.right_eye) {
+      lens.right_eye = {
+        ...lens.right_eye,
+        ...payload.right_eye,
+      };
+    }
+
+    return await this.LensRepo.save(lens);
+  }
+
+  async deleteLens(id: string) {
+    const lens = await this.LensRepo.findOneBy({ id });
+    if (!lens) throw new BadRequestException("Lentille pas trouvée");
+
+    return this.LensRepo.delete(id);
+  }
 
   async getBatchContent(id: string) {
     const batch = await this.batchRepo.findOne({
       where: {
         id,
       },
-      relations: { lens_orders: { client: true } },
+      relations: { brand: true, lens_orders: { client: true } },
     });
 
     if (!batch) throw new NotFoundException("Batch Not Found");
@@ -92,14 +125,14 @@ export class ToricsService {
       );
 
     let draftBatch = await this.batchRepo.findOneBy({
-      brand: payload.brand,
+      brand: { name: payload.brand },
       status: BatchStatus.DRAFT,
     });
 
     if (!draftBatch) {
       draftBatch = await this.batchRepo.save(
         this.batchRepo.create({
-          brand: payload.brand,
+          brand: { name: payload.brand },
           status: BatchStatus.DRAFT,
           created_at: new Date(),
         }),
@@ -165,40 +198,19 @@ export class ToricsService {
     );
   }
 
-  async checkArrived(id: string, updatedIds: string[]) {
-    if (!updatedIds || updatedIds.length === 0)
-      throw new BadRequestException("nothing to change");
-
-    //give sweet date
-    for (const updateId in updatedIds) {
-      await this.LensRepo.update(
-        { id: updateId },
-        {
-          arrived_at: new Date(),
-        },
-      );
-    }
-    //updates the batch state
-    return await this.batchRepo.update(
-      { id: id },
-      { status: BatchStatus.RECEIVED },
-    );
+  getBrands() {
+    return this.brandRepo.find();
   }
 
-  async deleteBatch(id: string) {
-    const batch = await this.batchRepo.findOneBy({ id });
-    if (!batch) {
-      throw new NotFoundException(`Batch with ID ${id} not found`);
-    }
+  async createBrand(name: string) {
+    const exists = await this.brandRepo.findOneBy({ name });
+    if (!exists) throw new BadRequestException("Brand already exists");
 
-    if (batch.status !== BatchStatus.DRAFT) {
-      throw new BadRequestException(
-        "Cannot delete a batch that has already been sent/exported.",
-      );
-    }
-
-    await this.batchRepo.delete(id);
-    return { message: "Draft batch successfully deleted" };
+    return this.brandRepo.save(
+      this.brandRepo.create({
+        name,
+      }),
+    );
   }
 
   formatDate(value: Date | string): string {
@@ -340,5 +352,41 @@ export class ToricsService {
     const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
 
     return { buffer, code: batch.code };
+  }
+
+  async checkArrived(id: string, updatedIds: string[]) {
+    if (!updatedIds || updatedIds.length === 0)
+      throw new BadRequestException("nothing to change");
+
+    //give sweet date
+    for (const updateId in updatedIds) {
+      await this.LensRepo.update(
+        { id: updateId },
+        {
+          arrived_at: new Date(),
+        },
+      );
+    }
+    //updates the batch state
+    return await this.batchRepo.update(
+      { id: id },
+      { status: BatchStatus.RECEIVED },
+    );
+  }
+
+  async deleteBatch(id: string) {
+    const batch = await this.batchRepo.findOneBy({ id });
+    if (!batch) {
+      throw new NotFoundException(`Batch with ID ${id} not found`);
+    }
+
+    if (batch.status !== BatchStatus.DRAFT) {
+      throw new BadRequestException(
+        "Cannot delete a batch that has already been sent/exported.",
+      );
+    }
+
+    await this.batchRepo.delete(id);
+    return { message: "Draft batch successfully deleted" };
   }
 }

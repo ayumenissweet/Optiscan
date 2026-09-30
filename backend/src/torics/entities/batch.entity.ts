@@ -2,10 +2,13 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
 } from "typeorm";
 import { LensOrder } from "./order.entity";
+import { LensBrand } from "./brand.entity";
 
 export enum BatchStatus {
   DRAFT = "Draft",
@@ -13,22 +16,14 @@ export enum BatchStatus {
   RECEIVED = "Received",
 }
 
-export enum ToricBrand {
-  SOLEKO = "Soleko",
-  CORNELIA = "Cornelia",
-  VERSA_VIEW = "Versa View",
-}
-
 @Entity()
 export class Batch {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({
-    type: "simple-enum",
-    enum: ToricBrand,
-  })
-  brand: ToricBrand;
+  @OneToOne(() => LensBrand)
+  @JoinColumn()
+  brand: LensBrand;
 
   @Column({ nullable: true })
   code: number;

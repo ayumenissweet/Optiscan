@@ -29,6 +29,7 @@ export class ToricsService {
     private readonly clientRepo: Repository<Client>,
     @InjectRepository(Settings)
     private readonly settingsRepo: Repository<Settings>,
+    @InjectRepository(LensBrand)
     private readonly brandRepo: Repository<LensBrand>,
     private readonly imageCompressService: ImageCompresserService,
     private readonly llmParsingService: LLMParserService,
@@ -48,20 +49,6 @@ export class ToricsService {
         await this.settingsRepo.save(this.settingsRepo.create(def));
       }
     }
-  }
-
-  async getBatches(brand: ToricBrand) {
-    return this.batchRepo
-      .createQueryBuilder("batch")
-      .where("batch.brand = :brand", { brand })
-      .addSelect(
-        `CASE WHEN batch.status = :draft THEN 0 ELSE 1 END`,
-        "status_order",
-      )
-      .setParameter("draft", BatchStatus.DRAFT)
-      .orderBy("status_order", "ASC")
-      .addOrderBy("batch.created_at", "DESC")
-      .getMany();
   }
 
   async updateLens(id: string, payload: UpdateToricDto) {
@@ -94,6 +81,21 @@ export class ToricsService {
     return this.LensRepo.delete(id);
   }
 
+  async getBatches(brand: string) {
+    return this.batchRepo
+      .createQueryBuilder("batch")
+      .innerJoin("batch.brand", "brand")
+      .where("brand.name = :brandName", { brand })
+      .addSelect(
+        `CASE WHEN batch.status = :draft THEN 0 ELSE 1 END`,
+        "status_order",
+      )
+      .setParameter("draft", BatchStatus.DRAFT)
+      .orderBy("status_order", "ASC")
+      .addOrderBy("batch.created_at", "DESC")
+      .getMany();
+  }
+
   async getBatchContent(id: string) {
     const batch = await this.batchRepo.findOne({
       where: {
@@ -124,9 +126,11 @@ export class ToricsService {
         "Au moins une ordonnance pour les yeux est requise.",
       );
 
-    let draftBatch = await this.batchRepo.findOneBy({
-      brand: { name: payload.brand },
-      status: BatchStatus.DRAFT,
+    let draftBatch = await this.batchRepo.findOne({
+      where: {
+        brand: { name: payload.brand },
+        status: BatchStatus.DRAFT,
+      },
     });
 
     if (!draftBatch) {
@@ -204,7 +208,7 @@ export class ToricsService {
 
   async createBrand(name: string) {
     const exists = await this.brandRepo.findOneBy({ name });
-    if (!exists) throw new BadRequestException("Brand already exists");
+    if (exists) throw new BadRequestException("Brand already exists");
 
     return this.brandRepo.save(
       this.brandRepo.create({
@@ -242,7 +246,8 @@ export class ToricsService {
       const result = await this.batchRepo
         .createQueryBuilder("batch")
         .select("MAX(batch.code)", "maxCode")
-        .where("batch.brand = :brand", { brand: batch.brand })
+        .innerJoin("batch.brand", "brand")
+        .where("brand.name = :brandName", { brandName: batch.brand.name })
         .andWhere("strftime('%Y', batch.created_at) = :currentYear", {
           currentYear: String(currentYear),
         })
@@ -359,13 +364,8 @@ export class ToricsService {
       throw new BadRequestException("nothing to change");
 
     //give sweet date
-    for (const updateId in updatedIds) {
-      await this.LensRepo.update(
-        { id: updateId },
-        {
-          arrived_at: new Date(),
-        },
-      );
+    for (const updateId of updatedIds) {
+      await this.LensRepo.update({ id: updateId }, { arrived_at: new Date() });
     }
     //updates the batch state
     return await this.batchRepo.update(

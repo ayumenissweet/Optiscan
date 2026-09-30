@@ -49,6 +49,24 @@ export class ToricsService {
         await this.settingsRepo.save(this.settingsRepo.create(def));
       }
     }
+
+    await this.brandRepo
+      .createQueryBuilder()
+      .insert()
+      .into(LensBrand)
+      .values(
+        [
+          "Soleko",
+          "Cornelia",
+          "Versa View",
+          "Coopervision",
+          "Menicon",
+          "Tslac",
+          "Air Optix",
+        ].map((name) => ({ name })),
+      )
+      .orIgnore()
+      .execute();
   }
 
   async updateLens(id: string, payload: UpdateToricDto) {
@@ -75,17 +93,20 @@ export class ToricsService {
   }
 
   async deleteLens(id: string) {
-    const lens = await this.LensRepo.findOneBy({ id });
-    if (!lens) throw new BadRequestException("Lentille pas trouvée");
+    const result = await this.LensRepo.delete(id);
 
-    return this.LensRepo.delete(id);
+    if (result.affected === 0) {
+      throw new BadRequestException("Lentille pas trouvée");
+    }
+
+    return result;
   }
 
   async getBatches(brand: string) {
     return this.batchRepo
       .createQueryBuilder("batch")
       .innerJoin("batch.brand", "brand")
-      .where("brand.name = :brandName", { brand })
+      .where("brand.name = :brandName", { brandName: brand })
       .addSelect(
         `CASE WHEN batch.status = :draft THEN 0 ELSE 1 END`,
         "status_order",

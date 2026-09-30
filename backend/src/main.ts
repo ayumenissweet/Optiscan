@@ -1,7 +1,10 @@
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
+import * as fs from "fs";
 
 export async function bootstrap(port: number) {
+  const dbPath = process.env.DB_PATH!;
+  if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, `${dbPath}.bak-v1`);
   const app = await NestFactory.create(AppModule);
   app.enableCors({
     origin: (origin, callback) => {

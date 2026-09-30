@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { SearchableSelect } from "../components/SearchableSelect";
 import DraftCard, { OrderStatus } from "../components/DraftCard";
 import { getApiBase } from "../api";
 
-export type ToricBrand = "Soleko" | "Cornelia" | "Versa View";
+// Brands are now dynamic (LensBrand entities), so this is just the brand name.
+export type ToricBrand = string;
+
+interface LensBrand {
+  name: string;
+}
 
 interface OrdersProps {
-  brand: ToricBrand;
+  /** Optional: defaults to the `:name` param of the /brand/:name route. */
+  brand?: ToricBrand;
 }
 
 export interface FilterTypes {
@@ -17,7 +23,7 @@ export interface FilterTypes {
 
 interface Batch {
   id: string;
-  brand: ToricBrand;
+  brand: LensBrand;
   code: number | null;
   status: OrderStatus;
   created_at: string;
@@ -167,8 +173,10 @@ function DeleteModal({ deleting, onCancel, onConfirm }: DeleteModalProps) {
   );
 }
 
-export default function Orders({ brand }: OrdersProps) {
+export default function Orders({ brand: brandProp }: OrdersProps) {
   const navigate = useNavigate();
+  const { name } = useParams<{ name: string }>();
+  const brand: ToricBrand = brandProp ?? name ?? "";
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -183,6 +191,12 @@ export default function Orders({ brand }: OrdersProps) {
   });
 
   const fetchBatches = useCallback(async () => {
+    if (!brand) {
+      setBatches([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(

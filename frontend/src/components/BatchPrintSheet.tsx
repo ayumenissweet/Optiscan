@@ -34,7 +34,7 @@ const EyeRow = ({ eye }: { eye?: EyePrescription | null }) => {
 
 export const BatchPrintSheet = forwardRef<HTMLDivElement, BatchPrintSheetProps>(
   ({ batch }, ref) => {
-    const title = `${batch.brand}**${batch.code ?? ""}/${shortYear(
+    const title = `${batch.brand.name}**${batch.code ?? ""}/${shortYear(
       batch.created_at,
     )}`;
 

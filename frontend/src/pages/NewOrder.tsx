@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Minus, Plus, ScanLine, Upload, X } from "lucide-react";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { getApiBase } from "../api";
+import { BRANDS_UPDATED_EVENT } from "../components/Navbar";
 
 interface NewOrderProps {}
 
@@ -52,7 +53,13 @@ interface CreateClientPayload {
   phone_number?: string;
 }
 
+/** Shape returned by GET /brand (and PATCH /brand) */
+interface LensBrand {
+  name: string;
+}
+
 const CLIENTS_PATH = "/clients";
+const BRANDS_PATH = "/brand";
 const CLIENT_FIELD = "clientId";
 const NOTE_MAX_WORDS = 20;
 
@@ -60,12 +67,6 @@ function countWords(text: string): number {
   const trimmed = text.trim();
   return trimmed === "" ? 0 : trimmed.split(/\s+/).length;
 }
-
-const brandOptions = [
-  { value: "Soleko", label: "Soleko" },
-  { value: "Cornelia", label: "Cornelia" },
-  { value: "Versa View", label: "Versa View" },
-];
 
 type Option = { value: string | null; label: string };
 
@@ -216,7 +217,10 @@ function toEyePayload(p: Prescription): {
 }
 
 export default function NewOrder({}: NewOrderProps) {
+  const [brands, setBrands] = useState<LensBrand[]>([]);
   const [brand, setBrand] = useState<string | null>(null);
+  const [brandsError, setBrandsError] = useState<string | null>(null);
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState<string | null>(null);
@@ -289,11 +293,54 @@ export default function NewOrder({}: NewOrderProps) {
       }
     })();
 
+    (async () => {
+      try {
+        const res = await fetch(`${getApiBase()}${BRANDS_PATH}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          throw new Error(
+            await getApiErrorMessage(
+              res,
+              `Couldn't load brands (${res.status}).`,
+            ),
+          );
+        }
+
+        const data: LensBrand[] = await res.json();
+        setBrands(data);
+        setBrandsError(null);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setBrandsError(
+          err instanceof Error ? err.message : "Couldn't load brands.",
+        );
+      }
+    })();
+
     return () => {
       window.removeEventListener("paste", handlePaste);
       controller.abort();
     };
   }, []);
+
+  const brandOptions = brands.map((b) => ({
+    value: b.name,
+    label: b.name,
+  }));
+
+  const handleBrandCreated = (created: LensBrand) => {
+    setBrands((previous) =>
+      previous.some((b) => b.name === created.name)
+        ? previous
+        : [...previous, created],
+    );
+    setBrand(created.name);
+    setBrandsError(null);
+    setIsBrandModalOpen(false);
+    // let the Navbar dropdown refresh
+    window.dispatchEvent(new Event(BRANDS_UPDATED_EVENT));
+  };
 
   const clientOptions = clients.map((c) => ({
     value: String(c.id),
@@ -532,6 +579,18 @@ export default function NewOrder({}: NewOrderProps) {
                 placeholder="Marque"
                 handleChange={(_, value) => setBrand(value)}
               />
+
+              <button
+                type="button"
+                onClick={() => setIsBrandModalOpen(true)}
+                className="mt-1 text-xs text-blue-700 hover:underline cursor-pointer"
+              >
+                Ajouter Une Marque
+              </button>
+
+              {brandsError && (
+                <p className="mt-1 text-xs text-red-600">{brandsError}</p>
+              )}
             </div>
 
             <div className="min-w-0 flex-1">
@@ -747,6 +806,13 @@ export default function NewOrder({}: NewOrderProps) {
         </section>
       </div>
 
+      {isBrandModalOpen && (
+        <AddBrandModal
+          onClose={() => setIsBrandModalOpen(false)}
+          onCreated={handleBrandCreated}
+        />
+      )}
+
       {isClientModalOpen && (
         <AddClientModal
           onClose={() => setIsClientModalOpen(false)}
@@ -881,6 +947,149 @@ function AddClientModal({ onClose, onCreated }: AddClientModalProps) {
             type="tel"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSave();
+            }}
+            className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-blue-600"
+          />
+        </div>
+
+        {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex h-10 items-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSaving && <Loader2 size={16} className="animate-spin" />}
+            Ajouter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AddBrandModalProps {
+  onClose: () => void;
+  onCreated: (brand: LensBrand) => void;
+}
+
+function AddBrandModal({ onClose, onCreated }: AddBrandModalProps) {
+  const [name, setName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isSaving) onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, isSaving]);
+
+  const handleSave = async () => {
+    const trimmedName = name.trim();
+
+    if (trimmedName === "") {
+      setError("name not provided for the brand");
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // The backend route is @Patch("brand") with { brand } in the body
+      const res = await fetch(`${getApiBase()}${BRANDS_PATH}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brand: trimmedName }),
+      });
+
+      if (!res.ok) {
+        throw new Error(
+          await getApiErrorMessage(
+            res,
+            `Couldn't create the brand (${res.status}).`,
+          ),
+        );
+      }
+
+      // Use the returned entity when it has a name, otherwise the typed name
+      let created: LensBrand = { name: trimmedName };
+      try {
+        const body: Partial<LensBrand> | null = await res.json();
+        if (body && typeof body.name === "string" && body.name !== "") {
+          created = { name: body.name };
+        }
+      } catch {
+        // empty / non-JSON body: keep the typed name
+      }
+
+      onCreated(created);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong while creating the brand.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget && !isSaving) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-brand-title"
+        className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-5 shadow-lg"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 id="add-brand-title" className="text-lg font-semibold">
+            New brand
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            aria-label="Close"
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-60"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="mb-4">
+          <label
+            htmlFor="brand-name"
+            className="mb-1 block text-sm font-medium"
+          >
+            Nom
+          </label>
+          <input
+            id="brand-name"
+            type="text"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSave();
             }}

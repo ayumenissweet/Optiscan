@@ -3,8 +3,8 @@ import {
   CreateDateColumn,
   Entity,
   JoinColumn,
+  ManyToOne,
   OneToMany,
-  OneToOne,
   PrimaryGeneratedColumn,
 } from "typeorm";
 import { LensOrder } from "./order.entity";
@@ -21,7 +21,7 @@ export class Batch {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @OneToOne(() => LensBrand)
+  @ManyToOne(() => LensBrand)
   @JoinColumn()
   brand: LensBrand;
 

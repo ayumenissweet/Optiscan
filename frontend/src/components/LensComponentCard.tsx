@@ -1,4 +1,4 @@
-import { User } from "lucide-react";
+import { Pencil, Trash2, User } from "lucide-react";
 
 export interface EyePrescription {
   ro: number;
@@ -19,8 +19,11 @@ interface LensComponentCardProps {
   left?: EyePrescription | null;
   right?: EyePrescription | null;
   clientName?: string | null;
+  note?: string | null;
   dimLeft?: boolean;
   dimRight?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 export function formatCorrection({
@@ -74,40 +77,77 @@ export default function LensComponentCard({
   left,
   right,
   clientName,
+  note,
   dimLeft = false,
   dimRight = false,
+  onEdit,
+  onDelete,
 }: LensComponentCardProps) {
   const showLeft = hasEye(left);
   const showRight = hasEye(right);
   if (!showLeft && !showRight) return null;
 
   const bothEyes = showLeft && showRight;
+  const showHeader = !!clientName || !!onEdit || !!onDelete;
 
   return (
-    <div
-      className={`grid h-full w-full ${
-        bothEyes ? "grid-cols-2" : "grid-cols-1"
-      } overflow-hidden rounded-lg border-[1.5px] border-stroke bg-card ${
-        clientName ? "grid-rows-[auto_1fr]" : ""
-      }`}
-    >
-      {clientName && (
-        <div className="col-span-full flex items-center gap-2 border-b-[1.5px] border-stroke bg-accent-2/5 px-3 py-2">
-          <User size={16} className="shrink-0 text-accent-2" />
-          <span className="truncate font-semibold" title={clientName}>
-            {clientName}
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border-[1.5px] border-stroke bg-card">
+      {showHeader && (
+        <div className="flex items-center gap-2 border-b-[1.5px] border-stroke bg-accent-2/5 px-3 py-2">
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            {clientName && (
+              <>
+                <User size={16} className="shrink-0 text-accent-2" />
+                <span className="truncate font-semibold" title={clientName}>
+                  {clientName}
+                </span>
+              </>
+            )}
           </span>
+
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label="Modifier la lentille"
+              title="Modifier"
+              className="flex shrink-0 cursor-pointer items-center rounded-md p-1 text-[#5a5a5a] hover:bg-[#f3f3f3] hover:text-accent-2"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="Supprimer la lentille"
+              title="Supprimer"
+              className="flex shrink-0 cursor-pointer items-center rounded-md p-1 text-[#5a5a5a] hover:bg-[#f3f3f3] hover:text-red-600"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
       )}
 
-      {hasEye(left) && <EyePanel side="OG" eye={left} dimmed={dimLeft} />}
-      {hasEye(right) && (
-        <EyePanel
-          side="OD"
-          eye={right}
-          dimmed={dimRight}
-          className={bothEyes ? "border-l-[1.5px] border-stroke" : ""}
-        />
+      <div
+        className={`grid flex-1 ${bothEyes ? "grid-cols-2" : "grid-cols-1"}`}
+      >
+        {showLeft && <EyePanel side="OG" eye={left} dimmed={dimLeft} />}
+        {showRight && (
+          <EyePanel
+            side="OD"
+            eye={right}
+            dimmed={dimRight}
+            className={bothEyes ? "border-l-[1.5px] border-stroke" : ""}
+          />
+        )}
+      </div>
+
+      {note && (
+        <p className="whitespace-pre-wrap break-words border-t-[1.5px] border-stroke px-3 py-2 text-sm text-text/70">
+          {note}
+        </p>
       )}
     </div>
   );

@@ -7,8 +7,9 @@
   "scripts": {
     "dev:frontend": "npm run dev --prefix frontend",
     "build:backend:watch": "npm run build --prefix backend -- --watch",
-    "dev:electron": "npx wait-on http://localhost:5173 file:backend/dist/main.js && tsc -p electron/tsconfig.json && electron electron/dist/main.js",
-    "dev": "npm run build:backend && concurrently -k -n \"FE,BE_BUILD,ELE\" -c \"cyan,magenta,blue\" \"npm run dev:frontend\" \"npm run build:backend:watch\" \"npm run dev:electron\"",
+    "build:electron:watch": "tsc -p electron/tsconfig.json --watch",
+    "dev:electron": "npx wait-on http://localhost:5173 file:backend/dist/main.js && electron electron/dist/main.js",
+    "dev": "concurrently -k -n \"FE,BE_BUILD,ELE_BUILD,ELE\" -c \"cyan,magenta,blue,yellow\" \"npm run dev:frontend\" \"npm run build:backend:watch\" \"npm run build:electron:watch\" \"npm run dev:electron\"",
     "build:frontend": "npm run build --prefix frontend",
     "build:backend": "npm run build --prefix backend",
     "build:electron": "tsc -p electron/tsconfig.json",

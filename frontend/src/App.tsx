@@ -8,19 +8,14 @@ import BatchCheckout from "./pages/BatchCheckout";
 function App() {
   return (
     <div className="flex min-h-screen">
-      <Navbar></Navbar>
+      <Navbar />
       <main className="flex-1">
         <Routes>
-          <Route path="/" element={<Orders brand="Soleko" />}></Route>
-          <Route path="/cornelia" element={<Orders brand="Cornelia" />}></Route>
-          <Route
-            path="/versa-view"
-            element={<Orders brand="Versa View" />}
-          ></Route>
+          <Route path="/brand/:name" element={<Orders />} />
 
-          <Route path="/new" element={<NewOrder />}></Route>
-          <Route path="/settings" element={<Settings />}></Route>
-          <Route path="/batches/:id" element={<BatchCheckout />}></Route>
+          <Route path="/" element={<NewOrder />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/batches/:id" element={<BatchCheckout />} />
         </Routes>
       </main>
     </div>

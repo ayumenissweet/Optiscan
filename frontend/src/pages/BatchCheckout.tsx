@@ -10,6 +10,8 @@ import LensComponentCard, {
   type EyePrescription,
 } from "../components/LensComponentCard";
 import { getApiBase } from "../api";
+import EditLensModal, { readApiError } from "../components/EditLensModal";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export interface Client {
   id: string;
@@ -23,12 +25,17 @@ export interface LensOrder {
   // At least one of the two eyes is always present.
   left_eye?: EyePrescription | null;
   right_eye?: EyePrescription | null;
+  note?: string | null;
   arrived_at?: string | null;
+}
+
+export interface LensBrand {
+  name: string;
 }
 
 export interface BatchContent {
   id: string;
-  brand: string;
+  brand: LensBrand;
   code: number | null;
   status: string;
   created_at: string;
@@ -86,11 +93,16 @@ export default function BatchCheckout() {
   const [filter, setFilter] = useState<Filters>(EMPTY_FILTERS);
   const [clientSearch, setClientSearch] = useState<string>("");
 
+  const [editingOrder, setEditingOrder] = useState<LensOrder | null>(null);
+  const [deletingOrder, setDeletingOrder] = useState<LensOrder | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: batch
-      ? `${batch.brand}-${batch.code ?? "brouillon"}`
+      ? `${batch.brand.name}-${batch.code ?? "brouillon"}`
       : "commande",
   });
 
@@ -136,6 +148,60 @@ export default function BatchCheckout() {
     const parsed = value === null ? null : Number(value);
     if (parsed !== null && Number.isNaN(parsed)) return;
     setFilter((prev) => ({ ...prev, [name as FilterKey]: parsed }));
+  };
+
+  // Local state update after a successful PATCH (no refetch).
+  const handleLensSaved = (lensId: string, patch: Partial<LensOrder>) => {
+    setBatch((prev) =>
+      prev
+        ? {
+            ...prev,
+            lens_orders: prev.lens_orders.map((o) =>
+              o.id === lensId ? { ...o, ...patch } : o,
+            ),
+          }
+        : prev,
+    );
+  };
+
+  const closeDeleteDialog = () => {
+    setDeletingOrder(null);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingOrder) return;
+    const lensId = deletingOrder.id;
+
+    try {
+      setDeleteLoading(true);
+      setDeleteError(null);
+      const response = await fetch(
+        `${getApiBase()}/lenses/${encodeURIComponent(lensId)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        setDeleteError(await readApiError(response));
+        return;
+      }
+      setBatch((prev) =>
+        prev
+          ? {
+              ...prev,
+              lens_orders: prev.lens_orders.filter((o) => o.id !== lensId),
+            }
+          : prev,
+      );
+      closeDeleteDialog();
+    } catch (e) {
+      setDeleteError(
+        e instanceof Error
+          ? `Suppression impossible : ${e.message}`
+          : "Suppression impossible.",
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const filterOptions = useMemo(() => {
@@ -228,7 +294,7 @@ export default function BatchCheckout() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h1 className="font-semibold text-3xl">
-              Checkout - {batch.brand}{" "}
+              Checkout - {batch.brand.name}{" "}
               {batch.code !== null
                 ? formatOrderNumber(batch.code, new Date(batch.created_at))
                 : "(Draft)"}
@@ -296,13 +362,43 @@ export default function BatchCheckout() {
                   clientName={order.client?.name}
                   left={order.left_eye}
                   right={order.right_eye}
+                  note={order.note}
                   dimLeft={filtersActive && !eyeMatches(order.left_eye, filter)}
-                  dimRight={filtersActive && !eyeMatches(order.right_eye, filter)}
+                  dimRight={
+                    filtersActive && !eyeMatches(order.right_eye, filter)
+                  }
+                  onEdit={() => setEditingOrder(order)}
+                  onDelete={() => setDeletingOrder(order)}
                 />
               ))}
             </div>
           )}
         </>
+      )}
+
+      {editingOrder && (
+        <EditLensModal
+          key={editingOrder.id}
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSaved={handleLensSaved}
+        />
+      )}
+
+      {deletingOrder && (
+        <ConfirmDialog
+          title="Supprimer cette lentille ?"
+          message={`${
+            deletingOrder.client?.name
+              ? `La lentille de ${deletingOrder.client.name}`
+              : "Cette lentille"
+          } sera définitivement supprimée de la commande. Cette action est irréversible.`}
+          confirmLabel="Supprimer"
+          loading={deleteLoading}
+          error={deleteError}
+          onConfirm={handleConfirmDelete}
+          onCancel={closeDeleteDialog}
+        />
       )}
     </div>
   );

@@ -4,12 +4,14 @@ import * as fs from "fs";
 import * as crypto from "crypto";
 import { bootstrap } from "../../backend/dist/main";
 
+app.disableHardwareAcceleration();
 const SECRET_KEY = "giga-super-secret-key";
 
 let win: BrowserWindow | null = null;
 let apiPort: number;
 let isQuitting = false;
 let nestApp: any;
+
 
 const licensePath = path.join(app.getPath("userData"), "license.json");
 

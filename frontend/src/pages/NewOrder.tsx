@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Minus, Plus, ScanLine, Upload, X } from "lucide-react";
+import { ClipboardPaste, Loader2, Minus, Plus, Upload, X } from "lucide-react";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { getApiBase } from "../api";
 import { BRANDS_UPDATED_EVENT } from "../components/Navbar";
@@ -14,21 +14,6 @@ interface Prescription {
   sph: SelectValue | null;
   cyl: SelectValue | null;
   axe: SelectValue | null;
-}
-
-/** Shape returned by POST /scan */
-interface EyeSchema {
-  ro: number | null;
-  dia: number | null;
-  sphere: number | null;
-  cyl?: number | null;
-  axe?: number | null;
-}
-
-interface ScanResponse {
-  status: "ok" | "invalid_document" | "parse_failed";
-  left_eye?: EyeSchema;
-  right_eye?: EyeSchema;
 }
 
 /** Shape expected by EyePrescriptionDto on POST /create */
@@ -72,7 +57,7 @@ type Option = { value: string | null; label: string };
 
 const makeOptions = (nums: number[], decimals = 2, signed = false): Option[] =>
   nums.map((n) => ({
-    value: String(n), // same format as numToStr() so scanned values match
+    value: String(n),
     label: (signed && n > 0 ? "+" : "") + n.toFixed(decimals),
   }));
 const blank = (label: string): Option => ({
@@ -117,22 +102,6 @@ const emptyPrescription: Prescription = {
   axe: null,
 };
 
-/** number | null | undefined -> string | null, safe for select values */
-function numToStr(n: number | null | undefined): SelectValue | null {
-  if (n === null || n === undefined || Number.isNaN(n)) return null;
-  return String(n);
-}
-
-function eyeSchemaToPrescription(eye: EyeSchema): Prescription {
-  return {
-    ro: numToStr(eye.ro),
-    dia: numToStr(eye.dia),
-    sph: numToStr(eye.sphere),
-    cyl: numToStr(eye.cyl),
-    axe: numToStr(eye.axe),
-  };
-}
-
 /** string select value -> number, or undefined if empty/invalid */
 function strToNum(v: SelectValue | null): number | undefined {
   if (v === null || v.trim() === "") return undefined;
@@ -140,35 +109,59 @@ function strToNum(v: SelectValue | null): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
-/** Shape of errors returned by the backend exception filter */
-interface ApiErrorBody {
-  statusCode?: number;
-  timestamp?: string;
-  message?: string | string[];
-  error?: string;
+function extractMessage(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as Record<string, unknown>;
+
+  const fromMessage = (m: unknown): string | null => {
+    if (typeof m === "string" && m.trim() !== "") return m;
+    if (Array.isArray(m) && m.length > 0) return m.join(" · ");
+    if (m && typeof m === "object") return extractMessage(m); // nested
+    return null;
+  };
+
+  return (
+    fromMessage(b.message) ??
+    (typeof b.error === "string" && b.error.trim() !== "" ? b.error : null)
+  );
 }
 
-/**
- * Reads a failed response and returns a human-readable message.
- * Uses `message` from the backend error body (string, or string[] for
- * class-validator errors), falling back to the given text.
- */
+
 async function getApiErrorMessage(
   res: Response,
   fallback: string,
 ): Promise<string> {
+  let raw = "";
   try {
-    const body: ApiErrorBody = await res.json();
-    if (Array.isArray(body?.message) && body.message.length > 0) {
-      return body.message.join(" · ");
-    }
-    if (typeof body?.message === "string" && body.message.trim() !== "") {
-      return body.message;
-    }
+    raw = await res.text();
   } catch {
-    // body wasn't JSON, use the fallback
+    // body unreadable, use the fallback
   }
-  return fallback;
+
+  console.error(
+    `[API error] ${res.status} ${res.statusText} ${res.url}\n`,
+    raw.slice(0, 1000) || "(empty body)",
+  );
+
+  // 1) JSON body from the backend
+  try {
+    const msg = extractMessage(JSON.parse(raw));
+    if (msg) return msg;
+  } catch {
+    // not JSON
+  }
+
+  // 2) Short plain-text body (not an HTML error page from a proxy)
+  const text = raw.trim();
+  if (text !== "" && text.length <= 200 && !text.startsWith("<")) {
+    return text;
+  }
+
+  // 3) Nothing usable: say *why* it's generic
+  const looksLikeHtml = text.startsWith("<");
+  return looksLikeHtml
+    ? `${fallback} The server or a proxy returned an HTML page instead of an API error.`
+    : `${fallback} The server returned no error message.`;
 }
 
 /** True if the user has filled in at least one field of this eye */
@@ -235,11 +228,7 @@ export default function NewOrder({}: NewOrderProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanMessage, setScanMessage] = useState<{
-    type: "error" | "success";
-    text: string;
-  } | null>(null);
+  const [pasteMessage, setPasteMessage] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{
@@ -261,7 +250,7 @@ export default function NewOrder({}: NewOrderProps) {
 
       setImageFile(image);
       setImagePreview(URL.createObjectURL(image));
-      setScanMessage(null);
+      setPasteMessage(null);
     };
 
     window.addEventListener("paste", handlePaste);
@@ -374,7 +363,7 @@ export default function NewOrder({}: NewOrderProps) {
 
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
-    setScanMessage(null);
+    setPasteMessage(null);
   };
 
   useEffect(() => {
@@ -385,85 +374,37 @@ export default function NewOrder({}: NewOrderProps) {
     };
   }, [imagePreview]);
 
-  const handleScan = async () => {
-    if (!imageFile) {
-      setScanMessage({
-        type: "error",
-        text: "Upload an image before scanning.",
-      });
-      return;
-    }
-
-    setIsScanning(true);
-    setScanMessage(null);
+  const handlePasteClick = async () => {
+    setPasteMessage(null);
 
     try {
-      const formData = new FormData();
-      formData.append("image", imageFile);
-
-      const res = await fetch(`${getApiBase()}/scan`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error(
-          await getApiErrorMessage(res, `Scan request failed (${res.status}).`),
-        );
+      if (!navigator.clipboard?.read) {
+        throw new Error("unsupported");
       }
 
-      const data: ScanResponse = await res.json();
+      const items = await navigator.clipboard.read();
 
-      if (data.status === "invalid_document") {
-        setScanMessage({
-          type: "error",
-          text: "This doesn't look like a prescription document. Try another image.",
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith("image/"));
+
+        if (!type) continue;
+
+        const blob = await item.getType(type);
+        const file = new File([blob], `pasted-image.${type.split("/")[1]}`, {
+          type,
         });
+
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
         return;
       }
 
-      if (data.status === "parse_failed") {
-        setScanMessage({
-          type: "error",
-          text: "Couldn't read the prescription from this image. You can still fill the fields in manually.",
-        });
-        return;
-      }
-
-      if (!data.left_eye && !data.right_eye) {
-        setScanMessage({
-          type: "error",
-          text: "No prescription values were found in this image.",
-        });
-        return;
-      }
-
-      // Only one eye may be present in the scan: clear the other one
-      setOg(
-        data.left_eye
-          ? eyeSchemaToPrescription(data.left_eye)
-          : emptyPrescription,
-      );
-      setOd(
-        data.right_eye
-          ? eyeSchemaToPrescription(data.right_eye)
-          : emptyPrescription,
-      );
-
-      setScanMessage({
-        type: "success",
-        text: "Prescription values filled in from the scan. Double-check before continuing.",
-      });
+      setPasteMessage("No image found in the clipboard.");
     } catch (err) {
-      setScanMessage({
-        type: "error",
-        text:
-          err instanceof Error
-            ? err.message
-            : "Something went wrong while scanning the image.",
-      });
-    } finally {
-      setIsScanning(false);
+      console.error("[paste] failed:", err);
+      setPasteMessage(
+        "Couldn't read the clipboard. Allow clipboard access, or press Ctrl+V.",
+      );
     }
   };
 
@@ -762,20 +703,15 @@ export default function NewOrder({}: NewOrderProps) {
             onChange={handleImageChange}
           />
 
-          {scanMessage && (
-            <p
-              className={`mt-3 text-center text-sm ${
-                scanMessage.type === "error" ? "text-red-600" : "text-green-600"
-              }`}
-            >
-              {scanMessage.text}
+          {pasteMessage && (
+            <p className="mt-3 text-center text-sm text-red-600">
+              {pasteMessage}
             </p>
           )}
 
           <button
             type="button"
-            onClick={handleScan}
-            disabled={isScanning || !imageFile}
+            onClick={handlePasteClick}
             className="
               mt-4
               flex
@@ -791,17 +727,11 @@ export default function NewOrder({}: NewOrderProps) {
               transition
               hover:brightness-95
               active:scale-[0.98]
-              disabled:cursor-not-allowed
-              disabled:opacity-60
               cursor-pointer
             "
           >
-            {isScanning ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              <ScanLine size={20} strokeWidth={2} />
-            )}
-            {isScanning ? "Scanning..." : "Scan Image"}
+            <ClipboardPaste size={20} strokeWidth={2} />
+            Paste Image
           </button>
         </section>
       </div>

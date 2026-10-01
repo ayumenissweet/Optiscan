@@ -5,7 +5,6 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { dbConfig } from "./config/dbConfig";
 import { ToricsModule } from "./torics/torics.module";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { LlmModule } from "./llm/llm.module";
 
 @Module({
   imports: [
@@ -15,7 +14,6 @@ import { LlmModule } from "./llm/llm.module";
       inject: [ConfigService],
       useFactory: dbConfig,
     }),
-    LlmModule,
   ],
   controllers: [AppController],
   providers: [AppService],

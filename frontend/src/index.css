@@ -1,21 +1,134 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
-@import "tailwindcss";
-
-@theme {
-  --color-bg: #f3f3f3;
-  --color-card: #ffffff;
-  --color-stroke: #d2d2d2;
-  --color-text: #0f172a;
-  --color-placeholder: #5a5a5a;
-  --color-accent-1: #0284c7;
-  --color-accent-2: #7651af;
-
-  --font-sans:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
 }
 
-body {
-  font-family: var(--font-sans);
-  background-color: var(--color-bg);
-  color: var(--color-text);
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: theme('colors.bg');
+    color: theme('colors.text');
+  }
+}
+
+.nav-sidebar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  display: flex;
+  height: 100vh;
+  width: 220px;
+  flex-direction: column;
+  padding: 1rem;
+  color: #ffffff;
+  /* Solid fallback color */
+  background-color: #4b2488;
+  /* Standard & legacy linear gradients */
+  background: -webkit-linear-gradient(135deg, #7651af, #4b2488, #3d1c68);
+  background: linear-gradient(135deg, #7651af, #4b2488, #3d1c68);
+  box-sizing: border-box;
+}
+
+.nav-menu-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  overflow-y: auto;
+}
+
+.nav-item-btn {
+  display: flex;
+  height: 3rem;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  padding: 0 0.875rem;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-item-btn:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.nav-item-btn.active {
+  border-color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.nav-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-left: 0.75rem;
+  margin-top: 0.375rem;
+}
+
+.nav-brand-item {
+  display: flex;
+  height: 2.5rem;
+  width: 100%;
+  align-items: center;
+  border-radius: 0.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #ffffff;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.nav-brand-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-brand-item.active {
+  border-color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Animated Chevron Icon */
+.nav-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.nav-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.truncate-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

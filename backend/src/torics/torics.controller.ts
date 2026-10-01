@@ -11,19 +11,17 @@ import {
   Query,
   Res,
   StreamableFile,
-  UploadedFile,
   UseInterceptors,
 } from "@nestjs/common";
 import type { Response } from "express";
 import { CreateToricDto } from "./dto/createToric.dto";
 import { ToricsService } from "./torics.service";
-import { multerConfig } from "src/config/multerConfig";
-import { FileInterceptor } from "@nestjs/platform-express";
 import { Batch } from "./entities/batch.entity";
 import { createClientDto } from "./dto/createClient.dto";
-import { ResponseSchema } from "src/schemas/lens.schema";
 import { UpdateSettingsDto } from "./dto/updateSettings.dto";
 import { UpdateToricDto } from "./dto/updateToric.dto";
+import { multerConfig } from "src/config/multerConfig";
+import { FileInterceptor } from "@nestjs/platform-express";
 
 @Controller("api")
 export class ToricsController {
@@ -58,18 +56,9 @@ export class ToricsController {
     return this.toricService.getBatchContent(id);
   }
 
-  //scan an image
-  @Post("scan")
-  @UseInterceptors(FileInterceptor("image", multerConfig))
-  scanImage(
-    @UploadedFile() file: Express.Multer.File,
-  ): Promise<ResponseSchema> {
-    return this.toricService.scanImage(file);
-  }
-
   // create a new entry
   @Post("create")
-  @UseInterceptors(FileInterceptor("image", multerConfig))
+  @UseInterceptors(FileInterceptor('image', multerConfig))
   createProduct(@Body() body: CreateToricDto) {
     return this.toricService.create(body);
   }

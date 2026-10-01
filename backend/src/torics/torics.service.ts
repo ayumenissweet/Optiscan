@@ -7,8 +7,6 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { LensOrder } from "./entities/order.entity";
 import { In, Repository } from "typeorm";
 import { CreateToricDto } from "./dto/createToric.dto";
-import { ImageCompresserService } from "./imageCompresser.service";
-import { LLMParserService } from "src/llm/llmParser.service";
 import * as ExcelJS from "exceljs";
 import { Batch, BatchStatus } from "./entities/batch.entity";
 import { createClientDto } from "./dto/createClient.dto";
@@ -31,8 +29,6 @@ export class ToricsService {
     private readonly settingsRepo: Repository<Settings>,
     @InjectRepository(LensBrand)
     private readonly brandRepo: Repository<LensBrand>,
-    private readonly imageCompressService: ImageCompresserService,
-    private readonly llmParsingService: LLMParserService,
   ) {}
 
   async onModuleInit() {
@@ -127,13 +123,6 @@ export class ToricsService {
 
     if (!batch) throw new NotFoundException("Batch Not Found");
     return batch;
-  }
-
-  async scanImage(file: Express.Multer.File) {
-    const { base64, mimeType } = await this.imageCompressService.compressBase64(
-      file.buffer,
-    );
-    return this.llmParsingService.parsePrescriptionImage(base64, mimeType);
   }
 
   async create(payload: CreateToricDto) {
@@ -248,13 +237,14 @@ export class ToricsService {
 
   async excelExport(id: string, customCode?: number) {
     const batch = await this.batchRepo.findOne({
-      where: { id },
-      relations: {
-        lens_orders: {
-          client: true,
-        },
+    where: { id },
+    relations: {
+      brand: true,
+      lens_orders: {
+        client: true,
       },
-    });
+    },
+  });
 
     if (!batch) throw new NotFoundException(`Batch not created / not found`);
 

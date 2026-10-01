@@ -58,79 +58,88 @@ export default function Navbar() {
     if (onBrandRoute) setIsBrandsOpen(true);
   }, [onBrandRoute]);
 
-  const navLinkStyle: NavLinkProps["className"] = ({ isActive }) =>
-    `flex h-12 w-full items-center gap-3 rounded-xl px-3.5 text-[15px] font-semibold transition-all ${
-      isActive
-        ? "border-2 border-bg bg-accent-2/10"
-        : "border-2 border-white/10 bg-white/10 hover:bg-white/15"
-    }`;
+  const navLinkClass: NavLinkProps["className"] = ({ isActive }) =>
+    `nav-item-btn ${isActive ? "active" : ""}`;
 
-  const brandLinkStyle: NavLinkProps["className"] = ({ isActive }) =>
-    `flex h-10 w-full items-center rounded-lg px-3 text-sm font-medium transition-all ${
-      isActive
-        ? "border-2 border-bg bg-accent-2/10"
-        : "border-2 border-transparent hover:bg-white/10"
-    }`;
+  const brandLinkClass: NavLinkProps["className"] = ({ isActive }) =>
+    `nav-brand-item ${isActive ? "active" : ""}`;
 
   return (
-    <nav className="sticky top-0 left-0 flex h-screen w-55 flex-col bg-linear-to-br from-[#7651AF] via-[#4B2488] to-[#3D1C68] p-4 text-bg">
-      <span className="mb-6 text-left text-[22px] font-semibold">
+    <nav className="nav-sidebar">
+      <span
+        style={{
+          marginBottom: "1.5rem",
+          textAlign: "left",
+          fontSize: "22px",
+          fontWeight: 600,
+        }}
+      >
         LMS Vision
       </span>
 
-      <div className="flex flex-col gap-2.5 overflow-y-auto">
-        <div className="flex flex-col gap-1.5">
+      <div className="nav-menu-scroll">
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <button
             type="button"
             onClick={() => setIsBrandsOpen((open) => !open)}
             aria-expanded={isBrandsOpen}
             aria-controls="brands-menu"
-            className={`flex h-12 w-full cursor-pointer items-center gap-3 rounded-xl border-2 px-3.5 text-[15px] font-semibold transition-all ${
-              onBrandRoute
-                ? "border-bg bg-accent-2/10"
-                : "border-white/10 bg-white/10 hover:bg-white/15"
-            }`}
+            className={`nav-item-btn ${onBrandRoute ? "active" : ""}`}
           >
             <Box size={18} strokeWidth={2} />
             <span>Marques</span>
             <ChevronDown
               size={16}
               strokeWidth={2}
-              className={`ml-auto transition-transform ${
-                isBrandsOpen ? "rotate-180" : ""
-              }`}
+              className={`nav-chevron ${isBrandsOpen ? "rotated" : ""}`}
             />
           </button>
 
           {isBrandsOpen && (
-            <div id="brands-menu" className="flex flex-col gap-1 pl-3">
+            <div id="brands-menu" className="nav-submenu">
               {brandsError && (
-                <p className="px-3 py-1 text-xs text-red-200">{brandsError}</p>
+                <p
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    fontSize: "0.75rem",
+                    color: "#fecaca",
+                  }}
+                >
+                  {brandsError}
+                </p>
               )}
 
               {!brandsError && brands.length === 0 && (
-                <p className="px-3 py-1 text-xs text-white/60">Aucune marque</p>
+                <p
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    fontSize: "0.75rem",
+                    color: "rgba(255, 255, 255, 0.6)",
+                  }}
+                >
+                  Aucune marque
+                </p>
               )}
 
               {brands.map((brand) => (
                 <NavLink
                   key={brand.name}
                   to={brandPath(brand.name)}
-                  className={brandLinkStyle}
+                  className={brandLinkClass}
                 >
-                  <span className="truncate">{brand.name}</span>
+                  <span className="truncate-text">{brand.name}</span>
                 </NavLink>
               ))}
             </div>
           )}
         </div>
 
-        <NavLink to="/" className={navLinkStyle}>
+        <NavLink to="/" className={navLinkClass}>
           <Plus size={18} strokeWidth={2} />
           <span>Ajouter</span>
         </NavLink>
 
-        <NavLink to="/settings" className={navLinkStyle}>
+        <NavLink to="/settings" className={navLinkClass}>
           <Settings size={18} strokeWidth={2} />
           <span>Options</span>
         </NavLink>

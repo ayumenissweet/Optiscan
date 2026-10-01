@@ -1,16 +1,13 @@
+import { defineConfig } from "vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
-import { defineConfig } from "vite";
-import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   base: "./",
-  plugins: [
-    react(),
-    tailwindcss(),
-    babel({ presets: [reactCompilerPreset()] }),
-  ],
-  build : {
-    sourcemap : true,
-  }
+  plugins: [react(), babel({ presets: [reactCompilerPreset()] })],
+  build: {
+    target: "chrome108",
+    cssTarget: "chrome108",
+    sourcemap: true,
+  },
 });

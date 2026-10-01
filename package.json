@@ -9,24 +9,38 @@
     "build:backend:watch": "npm run build --prefix backend -- --watch",
     "build:electron:watch": "tsc -p electron/tsconfig.json --watch",
     "dev:electron": "npx wait-on http://localhost:5173 file:backend/dist/main.js && electron electron/dist/main.js",
-    "dev": "concurrently -k -n \"FE,BE_BUILD,ELE_BUILD,ELE\" -c \"cyan,magenta,blue,yellow\" \"npm run dev:frontend\" \"npm run build:backend:watch\" \"npm run build:electron:watch\" \"npm run dev:electron\"",
     "build:frontend": "npm run build --prefix frontend",
     "build:backend": "npm run build --prefix backend",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
-    "rebuild": "electron-rebuild -f -w better-sqlite3 -m backend",
-    "ready": "npm i --prefix frontend && npm i --prefix backend && npm i --prefix electron && npm i",
-    "package": "npm run build && npm run rebuild && electron-builder --config electron-builder.json"
+    "rebuild:x64": "electron-rebuild -f -w better-sqlite3 -v 22.3.27 --arch x64",
+    "rebuild:ia32": "electron-rebuild -f -w better-sqlite3 -v 22.3.27 --arch ia32",
+    "ready": "npm i --ignore-scripts && node node_modules/electron/install.js && npm i --prefix frontend && npm i --prefix backend",
+    "dev": "concurrently -k -n \"FE,BE_BUILD,ELE_BUILD,ELE\" -c \"cyan,magenta,blue,yellow\" \"npm run dev:frontend\" \"npm run build:backend:watch\" \"npm run build:electron:watch\" \"npm run dev:electron\""
+    ,"package:win7": "npm run build && npm run rebuild:ia32 && electron-builder --config electron-builder.json --win --ia32"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.15",
+    "@nestjs/config": "^3.3.0",
+    "@nestjs/core": "^10.4.15",
+    "@nestjs/mapped-types": "^2.0.6",
+    "@nestjs/platform-express": "^10.4.15",
+    "@nestjs/typeorm": "^10.0.2",
+    "better-sqlite3": "9.6.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "exceljs": "^4.4.0",
+    "multer": "1.4.5-lts.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "typeorm": "0.3.20"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
     "concurrently": "^9.0.0",
-    "electron": "^44.4.3",
+    "electron": "22.3.27",
     "electron-builder": "^26.15.3",
     "typescript": "^5.7.3",
     "wait-on": "^8.0.0"
-  },
-  "dependencies": {
-    "@electron/rebuild": "^4.2.0",
-    "ready": "^0.1.1"
   }
 }

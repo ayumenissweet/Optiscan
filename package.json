@@ -15,7 +15,7 @@
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:frontend && npm run build:backend && npm run build:electron",
     "rebuild": "electron-rebuild -f -w better-sqlite3 -m backend",
-    "ready": "npm i --prefix frontend && npm i --prefix backend && npm i --prefix electron && npm i",
+    "ready": "npm i --prefix frontend && npm i --prefix backend && npm i",
     "package": "npm run build && npm run rebuild && electron-builder --config electron-builder.json"
   },
   "devDependencies": {

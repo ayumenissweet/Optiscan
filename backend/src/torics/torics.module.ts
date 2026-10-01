@@ -12,7 +12,6 @@ import { Settings } from "./entities/settings.entity";
 import { GeminiExceptionFilter } from "./filters/torics.geminiFilter";
 import { SqliteErrorFilter } from "./filters/torics.sqlFilter";
 import { LensBrand } from "./entities/brand.entity";
-import { AllExceptionsFilter } from "src/globalerror";
 
 @Module({
   imports: [
@@ -37,10 +36,6 @@ import { AllExceptionsFilter } from "src/globalerror";
     {
       provide: APP_FILTER,
       useClass: SqliteErrorFilter,
-    },
-    {
-      provide: APP_FILTER,
-      useClass: AllExceptionsFilter,
     },
     ImageCompresserService,
   ],

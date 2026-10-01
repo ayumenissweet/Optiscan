@@ -41,7 +41,6 @@ export class Batch {
   @CreateDateColumn({ type: "date" })
   exported_at: Date;
 
-  //without this array
   @OneToMany(() => LensOrder, (lensOrder) => lensOrder.batch)
   lens_orders: LensOrder[];
 }

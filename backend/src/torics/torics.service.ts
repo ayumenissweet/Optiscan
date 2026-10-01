@@ -250,6 +250,7 @@ export class ToricsService {
     const batch = await this.batchRepo.findOne({
       where: { id },
       relations: {
+        brand: true,
         lens_orders: {
           client: true,
         },

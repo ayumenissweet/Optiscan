@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { Loader2, Minus, Plus, ScanLine, Upload, X } from "lucide-react";
+import {
+  ClipboardPaste,
+  Loader2,
+  Minus,
+  Plus,
+  ScanLine,
+  Upload,
+  X,
+} from "lucide-react";
 import { SearchableSelect } from "../components/SearchableSelect";
 import { getApiBase } from "../api";
 import { BRANDS_UPDATED_EVENT } from "../components/Navbar";
@@ -277,7 +285,7 @@ export default function NewOrder({}: NewOrderProps) {
           throw new Error(
             await getApiErrorMessage(
               res,
-              `Couldn't load clients (${res.status}).`,
+              `Impossible de charger les clients (${res.status}).`,
             ),
           );
         }
@@ -288,7 +296,9 @@ export default function NewOrder({}: NewOrderProps) {
       } catch (err) {
         if (controller.signal.aborted) return;
         setClientsError(
-          err instanceof Error ? err.message : "Couldn't load clients.",
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger les clients.",
         );
       }
     })();
@@ -302,7 +312,7 @@ export default function NewOrder({}: NewOrderProps) {
           throw new Error(
             await getApiErrorMessage(
               res,
-              `Couldn't load brands (${res.status}).`,
+              `Impossible de charger les marques (${res.status}).`,
             ),
           );
         }
@@ -313,7 +323,9 @@ export default function NewOrder({}: NewOrderProps) {
       } catch (err) {
         if (controller.signal.aborted) return;
         setBrandsError(
-          err instanceof Error ? err.message : "Couldn't load brands.",
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger les marques.",
         );
       }
     })();
@@ -377,6 +389,46 @@ export default function NewOrder({}: NewOrderProps) {
     setScanMessage(null);
   };
 
+  /** Same as Ctrl+V, but triggered by the "Coller" button (Clipboard API) */
+  const handlePasteClick = async () => {
+    setScanMessage(null);
+
+    try {
+      if (!navigator.clipboard?.read) {
+        throw new Error("clipboard-unsupported");
+      }
+
+      const items = await navigator.clipboard.read();
+
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith("image/"));
+        if (!type) continue;
+
+        const blob = await item.getType(type);
+        const ext = type.split("/")[1] || "png";
+        const file = new File([blob], `image-collee.${ext}`, { type });
+
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
+        return;
+      }
+
+      setScanMessage({
+        type: "error",
+        text: "Aucune image trouvée dans le presse-papiers.",
+      });
+    } catch (err) {
+      const denied =
+        err instanceof DOMException && err.name === "NotAllowedError";
+      setScanMessage({
+        type: "error",
+        text: denied
+          ? "Accès au presse-papiers refusé. Autorisez-le dans votre navigateur ou utilisez Ctrl+V."
+          : "Impossible de lire le presse-papiers. Essayez avec Ctrl+V.",
+      });
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (imagePreview) {
@@ -389,7 +441,7 @@ export default function NewOrder({}: NewOrderProps) {
     if (!imageFile) {
       setScanMessage({
         type: "error",
-        text: "Upload an image before scanning.",
+        text: "Importez une image avant de scanner.",
       });
       return;
     }
@@ -408,7 +460,10 @@ export default function NewOrder({}: NewOrderProps) {
 
       if (!res.ok) {
         throw new Error(
-          await getApiErrorMessage(res, `Scan request failed (${res.status}).`),
+          await getApiErrorMessage(
+            res,
+            `Échec de la requête de scan (${res.status}).`,
+          ),
         );
       }
 
@@ -417,7 +472,7 @@ export default function NewOrder({}: NewOrderProps) {
       if (data.status === "invalid_document") {
         setScanMessage({
           type: "error",
-          text: "This doesn't look like a prescription document. Try another image.",
+          text: "Ce document ne ressemble pas à une ordonnance. Essayez une autre image.",
         });
         return;
       }
@@ -425,7 +480,7 @@ export default function NewOrder({}: NewOrderProps) {
       if (data.status === "parse_failed") {
         setScanMessage({
           type: "error",
-          text: "Couldn't read the prescription from this image. You can still fill the fields in manually.",
+          text: "Impossible de lire l'ordonnance sur cette image. Vous pouvez tout de même remplir les champs manuellement.",
         });
         return;
       }
@@ -433,7 +488,7 @@ export default function NewOrder({}: NewOrderProps) {
       if (!data.left_eye && !data.right_eye) {
         setScanMessage({
           type: "error",
-          text: "No prescription values were found in this image.",
+          text: "Aucune valeur d'ordonnance n'a été trouvée sur cette image.",
         });
         return;
       }
@@ -452,7 +507,7 @@ export default function NewOrder({}: NewOrderProps) {
 
       setScanMessage({
         type: "success",
-        text: "Prescription values filled in from the scan. Double-check before continuing.",
+        text: "Valeurs de l'ordonnance remplies à partir du scan. Vérifiez-les avant de continuer.",
       });
     } catch (err) {
       setScanMessage({
@@ -460,7 +515,7 @@ export default function NewOrder({}: NewOrderProps) {
         text:
           err instanceof Error
             ? err.message
-            : "Something went wrong while scanning the image.",
+            : "Une erreur est survenue lors du scan de l'image.",
       });
     } finally {
       setIsScanning(false);
@@ -471,19 +526,19 @@ export default function NewOrder({}: NewOrderProps) {
     setSubmitMessage(null);
 
     if (!brand) {
-      setSubmitMessage({ type: "error", text: "Select a brand." });
+      setSubmitMessage({ type: "error", text: "Sélectionnez une marque." });
       return;
     }
 
     if (!clientId) {
-      setSubmitMessage({ type: "error", text: "Select a client." });
+      setSubmitMessage({ type: "error", text: "Sélectionnez un client." });
       return;
     }
 
     if (countWords(note) > NOTE_MAX_WORDS) {
       setSubmitMessage({
         type: "error",
-        text: `The note is limited to ${NOTE_MAX_WORDS} words.`,
+        text: `La note est limitée à ${NOTE_MAX_WORDS} mots.`,
       });
       return;
     }
@@ -495,7 +550,7 @@ export default function NewOrder({}: NewOrderProps) {
     if (!isEyeTouched(og) && !isEyeTouched(od)) {
       setSubmitMessage({
         type: "error",
-        text: "Fill in at least one eye (OG or OD).",
+        text: "Remplissez au moins un œil (OG ou OD).",
       });
       return;
     }
@@ -507,7 +562,7 @@ export default function NewOrder({}: NewOrderProps) {
       if (rightMissing.length) parts.push(`OD: ${rightMissing.join(", ")}`);
       setSubmitMessage({
         type: "error",
-        text: `Missing required fields — ${parts.join(" · ")}`,
+        text: `Champs obligatoires manquants — ${parts.join(" · ")}`,
       });
       return;
     }
@@ -540,14 +595,14 @@ export default function NewOrder({}: NewOrderProps) {
         throw new Error(
           await getApiErrorMessage(
             res,
-            `Couldn't create the order (${res.status}).`,
+            `Impossible de créer la commande (${res.status}).`,
           ),
         );
       }
 
       setSubmitMessage({
         type: "success",
-        text: "Order created successfully.",
+        text: "Commande créée avec succès.",
       });
     } catch (err) {
       setSubmitMessage({
@@ -555,7 +610,7 @@ export default function NewOrder({}: NewOrderProps) {
         text:
           err instanceof Error
             ? err.message
-            : "Something went wrong while creating the order.",
+            : "Une erreur est survenue lors de la création de la commande.",
       });
     } finally {
       setIsSubmitting(false);
@@ -649,7 +704,7 @@ export default function NewOrder({}: NewOrderProps) {
                     : "text-gray-400"
                 }`}
               >
-                {countWords(note)}/{NOTE_MAX_WORDS} words
+                {countWords(note)}/{NOTE_MAX_WORDS} mots
               </span>
             </div>
 
@@ -658,7 +713,7 @@ export default function NewOrder({}: NewOrderProps) {
               name="note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional, a short note (10-20 words)"
+              placeholder="Facultatif, une courte note (10-20 mots)"
               className="
                 h-16
                 w-full
@@ -716,7 +771,7 @@ export default function NewOrder({}: NewOrderProps) {
             "
           >
             {isSubmitting && <Loader2 size={20} className="animate-spin" />}
-            Continue
+            Continuer
           </button>
         </section>
 
@@ -743,13 +798,13 @@ export default function NewOrder({}: NewOrderProps) {
             {imagePreview ? (
               <img
                 src={imagePreview}
-                alt="Uploaded prescription"
+                alt="Ordonnance importée"
                 className="h-full w-full object-contain p-4"
               />
             ) : (
               <div className="flex flex-col items-center gap-4 text-gray-400">
                 <Upload size={48} strokeWidth={1.8} />
-                <span className="text-lg font-medium">Upload An Image</span>
+                <span className="text-lg font-medium">Importer Une Image</span>
               </div>
             )}
           </label>
@@ -801,7 +856,34 @@ export default function NewOrder({}: NewOrderProps) {
             ) : (
               <ScanLine size={20} strokeWidth={2} />
             )}
-            {isScanning ? "Scanning..." : "Scan Image"}
+            {isScanning ? "Analyse en cours..." : "Scanner L'image"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePasteClick}
+            className="
+              mt-2
+              flex
+              h-11
+              items-center
+              gap-2
+              rounded-lg
+              border
+              border-gray-200
+              bg-white
+              px-4
+              text-base
+              font-medium
+              text-gray-700
+              transition
+              hover:bg-gray-50
+              active:scale-[0.98]
+              cursor-pointer
+            "
+          >
+            <ClipboardPaste size={20} strokeWidth={2} />
+            Coller L'image
           </button>
         </section>
       </div>
@@ -847,7 +929,7 @@ function AddClientModal({ onClose, onCreated }: AddClientModalProps) {
     const trimmedPhone = phoneNumber.trim();
 
     if (trimmedName === "") {
-      setError("name not provided for the client");
+      setError("Le nom du client est requis.");
       return;
     }
 
@@ -868,7 +950,7 @@ function AddClientModal({ onClose, onCreated }: AddClientModalProps) {
         throw new Error(
           await getApiErrorMessage(
             res,
-            `Couldn't create the client (${res.status}).`,
+            `Impossible de créer le client (${res.status}).`,
           ),
         );
       }
@@ -879,7 +961,7 @@ function AddClientModal({ onClose, onCreated }: AddClientModalProps) {
       setError(
         err instanceof Error
           ? err.message
-          : "Something went wrong while creating the client.",
+          : "Une erreur est survenue lors de la création du client.",
       );
     } finally {
       setIsSaving(false);
@@ -901,13 +983,13 @@ function AddClientModal({ onClose, onCreated }: AddClientModalProps) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id="add-client-title" className="text-lg font-semibold">
-            New client
+            Nouveau client
           </h2>
           <button
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            aria-label="Close"
+            aria-label="Fermer"
             className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-60"
           >
             <X size={18} />
@@ -939,8 +1021,8 @@ function AddClientModal({ onClose, onCreated }: AddClientModalProps) {
             htmlFor="client-phone"
             className="mb-1 block text-sm font-medium"
           >
-            Telephone{" "}
-            <span className="font-normal text-gray-400">(optional)</span>
+            Téléphone{" "}
+            <span className="font-normal text-gray-400">(facultatif)</span>
           </label>
           <input
             id="client-phone"
@@ -1002,7 +1084,7 @@ function AddBrandModal({ onClose, onCreated }: AddBrandModalProps) {
     const trimmedName = name.trim();
 
     if (trimmedName === "") {
-      setError("name not provided for the brand");
+      setError("Le nom de la marque est requis.");
       return;
     }
 
@@ -1021,7 +1103,7 @@ function AddBrandModal({ onClose, onCreated }: AddBrandModalProps) {
         throw new Error(
           await getApiErrorMessage(
             res,
-            `Couldn't create the brand (${res.status}).`,
+            `Impossible de créer la marque (${res.status}).`,
           ),
         );
       }
@@ -1042,7 +1124,7 @@ function AddBrandModal({ onClose, onCreated }: AddBrandModalProps) {
       setError(
         err instanceof Error
           ? err.message
-          : "Something went wrong while creating the brand.",
+          : "Une erreur est survenue lors de la création de la marque.",
       );
     } finally {
       setIsSaving(false);
@@ -1064,13 +1146,13 @@ function AddBrandModal({ onClose, onCreated }: AddBrandModalProps) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id="add-brand-title" className="text-lg font-semibold">
-            New brand
+            Nouvelle marque
           </h2>
           <button
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            aria-label="Close"
+            aria-label="Fermer"
             className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-60"
           >
             <X size={18} />
